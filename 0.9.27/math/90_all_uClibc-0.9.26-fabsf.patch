@@ -1,0 +1,45 @@
+--- libm/Makefile.mps	2004-11-04 14:32:53.000000000 +0100
++++ libm/Makefile	2004-11-04 14:34:41.000000000 +0100
+@@ -69,7 +69,7 @@
+          w_cosh.c w_drem.c w_exp.c w_fmod.c w_gamma.c w_gamma_r.c\
+          w_hypot.c w_j0.c w_j1.c w_jn.c w_lgamma.c w_lgamma_r.c\
+          w_log.c w_log10.c w_pow.c w_remainder.c w_scalb.c w_sinh.c\
+-         w_sqrt.c w_sqrtf.c fpmacros.c nan.c s_ceilf.c s_floorf.c
++         w_sqrt.c w_sqrtf.c fpmacros.c nan.c s_ceilf.c s_floorf.c s_fabsf.c
+ else
+ # This list of math functions was taken from POSIX/IEEE 1003.1b-1993
+ CSRC =   w_acos.c w_asin.c s_atan.c w_atan2.c s_ceil.c s_cos.c \
+--- libm/s_fabsf.c.mps	2004-11-04 14:34:47.000000000 +0100
++++ libm/s_fabsf.c	2004-11-04 14:32:05.000000000 +0100
+@@ -0,0 +1,31 @@
++/* s_fabsf.c float version of s_fabs.c */
++/*
++ * ====================================================
++ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
++ *
++ * Developed at SunPro, a Sun Microsystems, Inc. business.
++ * Permission to use, copy, modify, and distribute this
++ * software is freely granted, provided that this notice 
++ * is preserved.
++ * ====================================================
++ */
++
++/*
++ * fabsf(x) returns the absolute value of x.
++ */
++
++#include "math.h"
++#include "math_private.h"
++
++#ifdef __STDC__
++	float fabsf(float x)
++#else
++	float fabsf(x)
++	float x;
++#endif
++{
++	u_int32_t ix;
++	GET_FLOAT_WORD(ix,x);
++	SET_FLOAT_WORD(x,ix&0x7fffffff);
++        return x;
++}

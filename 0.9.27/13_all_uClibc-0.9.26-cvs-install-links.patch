@@ -1,0 +1,11 @@
+--- uClibc-0.9.26/Makefile.mps	2004-11-12 11:36:40.000000000 +0100
++++ uClibc-0.9.26/Makefile	2004-11-12 11:39:16.000000000 +0100
+@@ -192,7 +192,7 @@
+ install_dev:
+ 	$(INSTALL) -d $(PREFIX)$(DEVEL_PREFIX)lib
+ 	$(INSTALL) -d $(PREFIX)$(DEVEL_PREFIX)include
+-	-$(INSTALL) -m 644 lib/*.[ao] $(PREFIX)$(DEVEL_PREFIX)lib/
++	-cp -df lib/*.[ao] $(PREFIX)$(DEVEL_PREFIX)lib/
+ 	tar -chf - include | tar -xf - -C $(PREFIX)$(DEVEL_PREFIX);
+ ifneq ($(strip $(UCLIBC_HAS_FLOATS)),y)
+ 	# Remove floating point related headers since float support is disabled.

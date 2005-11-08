@@ -1,0 +1,247 @@
+Grab some fixes by psm/jocke from upstream svn to fix TEXTREL's in arm
+
+--- libc/sysdeps/linux/arm/Makefile
++++ libc/sysdeps/linux/arm/Makefile
+@@ -28,7 +28,7 @@ SSRC=__longjmp.S vfork.S clone.S setjmp.
+ 	bsd-_setjmp.S sigrestorer.S mmap64.S
+ SOBJS=$(patsubst %.S,%.o, $(SSRC))
+ 
+-CSRC=brk.c syscall.c ioperm.c sigaction.c
++CSRC=brk.c syscall.c ioperm.c sigaction.c __syscall_error.c
+ COBJS=$(patsubst %.c,%.o, $(CSRC))
+ 
+ OBJS=$(SOBJS) $(MOBJ) $(COBJS)
+--- libc/sysdeps/linux/arm/__syscall_error.c
++++ libc/sysdeps/linux/arm/__syscall_error.c
+@@ -0,0 +1,29 @@
++/* Wrapper around clone system call.
++   Copyright (C) 1997, 1998, 1999, 2000 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, write to the Free
++   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
++   02111-1307 USA.  */
++
++#include <errno.h>
++
++/* This routine is jumped to by all the syscall handlers, to stash
++ * an error number into errno.  */
++int attribute_hidden __syscall_error (int err_no)
++{
++	__set_errno (-err_no);
++	return -1;
++}
++
+--- libc/sysdeps/linux/arm/bsd-_setjmp.S
++++ libc/sysdeps/linux/arm/bsd-_setjmp.S
+@@ -30,5 +30,9 @@
+ .align 4;
+ _setjmp:
+ 	mov	r1, #0
++#ifdef __PIC__
+ 	b	__sigsetjmp (PLT)
++#else
++	b	__sigsetjmp
++#endif
+ .size _setjmp,.-_setjmp;
+--- libc/sysdeps/linux/arm/bsd-setjmp.S
++++ libc/sysdeps/linux/arm/bsd-setjmp.S
+@@ -30,5 +30,9 @@
+ .align 4;
+ setjmp:
+ 	mov	r1, #1
++#ifdef __PIC__
+ 	b	__sigsetjmp (PLT)
++#else
++	b	__sigsetjmp
++#endif
+ .size setjmp,.-setjmp;
+--- libc/sysdeps/linux/arm/clone.S
++++ libc/sysdeps/linux/arm/clone.S
+@@ -20,9 +20,11 @@
+ /* clone() is even more special than fork() as it mucks with stacks
+    and invokes a function in the right context after its all over.  */
+ 
+-#include <asm/errno.h>
++#define _ERRNO_H
++#include <bits/errno.h>
+ #include <sys/syscall.h>
+ 
++#ifdef __NR_clone
+ /* int clone(int (*fn)(void *arg), void *child_stack, int flags, void *arg); */
+ 
+ .text
+@@ -34,7 +36,7 @@ __clone:
+ 	cmp	r0, #0
+ 	cmpne	r1, #0
+ 	moveq	r0, #-EINVAL
+-	beq	__syscall_error (PLT)
++	beq	__error
+ 
+ 	@ insert the args onto the new stack
+ 	sub	r1, r1, #8
+@@ -48,7 +50,7 @@ __clone:
+ 	@ new sp is already in r1
+ 	swi	__NR_clone
+ 	movs	a1, a1
+-	blt	__syscall_error  (PLT)
++	blt	__error
+ 	movne    pc, lr
+ 
+ 	@ pick the function arg and call address off the stack and execute
+@@ -57,25 +59,20 @@ __clone:
+ 	ldr 	pc, [sp]
+ 
+ 	@ and we are done, passing the return value through r0
++#ifdef __PIC__
+ 	b	_exit	(PLT)
++#else
++	b	_exit
++#endif
++
++__error:
++	b	__syscall_error
+ 
+-__syscall_error:
+-	/* Looks like the syscall choked -- set errno */
+-	ldr  r3, .L4
+-	/* Calculate the - of the syscall result, in case we need it */
+-	rsb  r2, r0, $0
+-
+-	/* errno = -result */
+-	str  r2, [r9,r3]
+-
+-	/* return -1 */
+-	mvn  r0, $0
+-	mov  pc, lr
+ .size __clone,.-__clone;
+ 
+-.L4:  .word errno
+ 
+ 
+-.globl	clone;
++.weak	clone
+     clone = __clone
+ 
++#endif
+--- libc/sysdeps/linux/arm/mmap64.S
++++ libc/sysdeps/linux/arm/mmap64.S
+@@ -16,8 +16,8 @@
+    Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+    02111-1307 USA.  */
+ 
+-#define _ERRNO_H	1
+ #include <features.h>
++#define _ERRNO_H
+ #include <bits/errno.h>
+ #include <sys/syscall.h>
+ 
+@@ -47,33 +47,26 @@ mmap64:
+ 	ldmccfd	sp!, {r4, r5, pc}
+ 	cmn	r0, $ENOSYS
+ 	ldmnefd	sp!, {r4, r5, lr}
+-	bne	__syscall_error (PLT)
++	bne	__error
+ 	/* The current kernel does not support mmap2.  Fall back to plain
+ 	   mmap if the offset is small enough.  */
+ 	ldr	r5, [sp, $20]
+ 	mov	r0, ip			@ first arg was clobbered
+ 	teq	r5, $0
+ 	ldmeqfd	sp!, {r4, r5, lr}
++#ifdef __PIC__
+ 	beq	mmap (PLT)
++#else
++	beq mmap
++#endif
+ .Linval:
+ 	mov	r0, $-EINVAL
+ 	ldmfd	sp!, {r4, r5, lr}
+-	b	__syscall_error (PLT)
++	b	__error
+ 
+-__syscall_error:
+-	/* Looks like the syscall choked -- set errno */
+-	ldr  r3, .L4
+-	/* Calculate the - of the syscall result, in case we need it */
+-	rsb  r2, r0, $0
+-
+-	/* errno = -result */
+-	str  r2, [r9,r3]
+-
+-	/* return -1 */
+-	mvn  r0, $0
+-	mov  pc, lr
++__error:
++	b	__syscall_error
+ .size mmap64,.-mmap64;
+ 
+-.L4:  .word errno
+ 
+ #endif
+--- libc/sysdeps/linux/arm/setjmp.S
++++ libc/sysdeps/linux/arm/setjmp.S
+@@ -38,5 +38,9 @@ __sigsetjmp:
+ 	sub     r0, r0, #48
+ 
+ 	/* Make a tail call to __sigjmp_save; it takes the same args.  */
++#ifdef __PIC__
+ 	B	__sigjmp_save	(PLT)
++#else
++	B	__sigjmp_save
++#endif
+ .size __sigsetjmp,.-__sigsetjmp;
+--- libc/sysdeps/linux/arm/vfork.S
++++ libc/sysdeps/linux/arm/vfork.S
+@@ -24,7 +24,7 @@
+ #include <sys/syscall.h>
+ 
+ 
+-
++#ifdef __NR_fork
+ 		.text
+ 		.global vfork;
+ 		.type vfork,%function
+@@ -42,7 +42,7 @@ vfork:
+ 		/* Check if vfork even exists.  */
+ 		ldr     r1, =-ENOSYS
+ 		teq     r0, r1
+-		bne     __syscall_error
++		bne     __error
+ #endif
+ 
+ 		/* If we don't have vfork, use fork.  */
+@@ -52,20 +52,8 @@ vfork:
+ 		/* Syscal worked.  Return to child/parent */
+ 		movcc   pc, lr
+ 
+-__syscall_error:
+-
+-		/* Looks like the syscall choked -- set errno */
+-		ldr  r3, .L4
+-		/* Calculate the - of the syscall result, in case we need it */
+-		rsb  r2, r0, $0
+-
+-		/* errno = -result */
+-		str  r2, [r9,r3]
+-
+-		/* return -1 */
+-		mvn  r0, $0
+-		mov  pc, lr
+-
+-.L4:  .word errno
++__error:
++		b	__syscall_error
+ 
+ 
++#endif

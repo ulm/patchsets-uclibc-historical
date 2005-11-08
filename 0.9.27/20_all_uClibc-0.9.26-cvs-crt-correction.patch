@@ -1,0 +1,60 @@
+--- utils/Makefile.mps	2004-10-17 19:15:16.000000000 +0200
++++ utils/Makefile	2004-10-17 19:56:55.000000000 +0200
+@@ -35,6 +35,33 @@
+ all:	$(TARGET_ICONV)
+ endif
+ 
++N_CRT_FILE=crt1.o
++N_START_FILE=crtbegin.o
++N_END_FILE=crtend.o
++
++ifeq ($(UCLIBC_BUILD_PIE),y)
++CRT_FILE=Scrt1.o
++START_FILE=crtbeginS.o
++END_FILE=crtendS.o
++else
++CRT_FILE=$(N_CRT_FILE)
++START_FILE=$(N_START_FILE)
++END_FILE=$(N_END_FILE)
++endif
++
++START_FILES=$(TOPDIR)lib/$(CRT_FILE) $(TOPDIR)lib/crti.o $(LIBGCC_DIR)/$(START_FILE)
++END_FILES=-L $(TOPDIR)lib -lc $(LIBGCC) $(LIBGCC_DIR)$(END_FILE) $(TOPDIR)lib/crtn.o
++
++# arm and ia64 do not have crtbeginT.o for static linking
++ifeq ($(TARGET_arm),y)
++STATIC_START_FILE=$(N_START_FILE)
++else
++STATIC_START_FILE=crtbeginT.o
++endif
++
++STATIC_START_FILES=$(TOPDIR)lib/$(N_CRT_FILE) $(TOPDIR)lib/crti.o $(LIBGCC_DIR)/$(STATIC_START_FILE)
++STATIC_END_FILES=-L $(TOPDIR)lib -lc $(LIBGCC) $(LIBGCC_DIR)/$(N_END_FILE) $(TOPDIR)lib/crtn.o
++
+ headers:
+ 	@$(LN) -fs $(TOPDIR)include/elf.h
+ 
+@@ -46,20 +73,20 @@
+ 	$(CC) $(CFLAGS) -Wl,-s -static \
+ 		-DUCLIBC_RUNTIME_PREFIX=\"$(RUNTIME_PREFIX)\" \
+ 		-DUCLIBC_LDSO=$(UCLIBC_LDSO) -I. -I../ldso/include \
+-		$^ -o $@
++		-nostdlib -o $@ $(STATIC_START_FILES) $^ $(STATIC_END_FILES)
+ 	$(STRIPTOOL) -x -R .note -R .comment $@
+ 
+ ldd:	ldd.c
+ 	$(CC) $(CFLAGS) $(PIEFLAG) $(LDPIEFLAG) -Wl,-s \
+ 		-DUCLIBC_RUNTIME_PREFIX=\"$(RUNTIME_PREFIX)\" \
+ 		-DUCLIBC_LDSO=$(UCLIBC_LDSO) -I. -I../ldso/include \
+-		$^ -o $@
++		-nostdlib -o $@ $(START_FILES) $^ $(END_FILES)
+ 	$(STRIPTOOL) -x -R .note -R .comment $@
+ 
+ iconv: ../libc/misc/wchar/wchar.c
+ 	$(CC) $(CFLAGS) $(PIEFLAG) $(LDPIEFLAG) -Wl,-s \
+ 		-DL_iconv_main \
+-		$^ -o $@
++		-nostdlib -o $@ $(START_FILES) $^ $(END_FILES)
+ 	$(STRIPTOOL) -x -R .note -R .comment $@
+ 
+ ifeq ($(strip $(HAVE_SHARED)),y)

@@ -1,0 +1,194 @@
+http://bugs.gentoo.org/98187
+
+this is fixed properly in uClibc 0.9.28, this is just a partial fix/hack
+by Martin Schlemmer to make uClibc 0.9.27 play nice
+
+If _DL_FINI_CRT_COMPAT is defined, the library's FINI is setup to run at exit
+via atexit(), but this makes it run _before_ the fini (__app_fini()) of the
+app, causing stuff like sandbox that frees structs, etc via its fini to
+segfault.
+
+Relevant back-trace:
+
+(gdb) bt
+#0  0x400cb62c in free () from /lib/libc.so.0
+#1  0x4000b3da in before_syscall (func=0x4000bd63 "unlink", file=0x80dca90 "/tmp/groff35k2OB") at libsandbox.c:1362
+#2  0x40009c28 in unlink (pathname=0x80dca90 "/tmp/groff35k2OB") at libsandbox.c:657
+#3  0x0805e34c in xtmpfile_list_init::~xtmpfile_list_init ()
+#4  0x0805e557 in __static_initialization_and_destruction_0 ()
+#5  0x0805e5a8 in global destructors keyed to tmpfile_prefix ()
+#6  0x080494d6 in __do_global_dtors_aux ()
+#7  0x0805e5fc in _fini ()
+#8  0x400c91ba in exit () from /lib/libc.so.0
+#9  0x400a1f7d in __uClibc_start_main () from /lib/libc.so.0
+#10 0x080494a8 in _start ()
+#11 0x00000003 in ?? ()
+#12 0xbffff744 in ?? ()
+#13 0xbffff754 in ?? ()
+#14 0x08048ff8 in ?? ()
+#15 0x0805e5e8 in __do_global_ctors_aux ()
+#16 0x00000000 in ?? ()
+
+--- uClibc-0.9.27/ldso/ldso/ldso.c
++++ uClibc-0.9.27/ldso/ldso/ldso.c
+@@ -74,13 +74,29 @@ void _dl_debug_state(void)
+ static unsigned char *_dl_malloc_addr = 0;	/* Lets _dl_malloc use the already allocated memory page */
+ static unsigned char *_dl_mmap_zero   = 0;	/* Also used by _dl_malloc */
+ 
+-#if defined (__SUPPORT_LD_DEBUG__)
+-static void debug_fini (int status, void *arg)
++static struct elf_resolve **init_fini_list;
++static int nlist;
++static void __attribute_used__ _dl_fini(void)
+ {
+-	(void)status;
+-	_dl_dprintf(_dl_debug_file,"\ncalling fini: %s\n\n", (const char*)arg);
+-}
++	int i;
++	struct elf_resolve * tpnt;
++
++	for (i = 0; i < nlist; ++i) {
++		tpnt = init_fini_list[i];
++		if (tpnt->init_flag & FINI_FUNCS_CALLED)
++			continue;
++		tpnt->init_flag |= FINI_FUNCS_CALLED;
++		if (tpnt->dynamic_info[DT_FINI]) {
++			void (*dl_elf_func) (void);
++
++			dl_elf_func = (void (*)(void)) (intptr_t) (tpnt->loadaddr + tpnt->dynamic_info[DT_FINI]);
++#if defined (__SUPPORT_LD_DEBUG__)
++			_dl_dprintf(_dl_debug_file,"\ncalling fini: %s\n\n", tpnt->libname);
+ #endif
++			(*dl_elf_func) ();
++		}
++	}
++}
+ 
+ void _dl_get_ready_to_run(struct elf_resolve *tpnt, unsigned long load_addr,
+ 			  Elf32_auxv_t auxvt[AT_EGID + 1], char **envp,
+@@ -89,22 +112,17 @@ void _dl_get_ready_to_run(struct elf_res
+ 	ElfW(Phdr) *ppnt;
+ 	Elf32_Dyn *dpnt;
+ 	char *lpntstr;
+-	int i, nlist, goof = 0, unlazy = 0, trace_loaded_objects = 0;
+-	struct elf_resolve **init_fini_list;
++	int i, goof = 0, unlazy = 0, trace_loaded_objects = 0;
+ 	struct dyn_elf *rpnt;
+ 	struct elf_resolve *tcurr;
+ 	struct elf_resolve *tpnt1;
+ 	struct elf_resolve app_tpnt_tmp;
+ 	struct elf_resolve *app_tpnt = &app_tpnt_tmp;
+ 	struct r_debug *debug_addr;
+ 	unsigned long *lpnt;
+-	int (*_dl_atexit) (void *);
+ 	unsigned long *_dl_envp;		/* The environment address */
+ 	ElfW(Addr) relro_addr = 0;
+ 	size_t relro_size = 0;
+-#if defined (__SUPPORT_LD_DEBUG__)
+-	int (*_dl_on_exit) (void (*FUNCTION)(int STATUS, void *ARG),void*);
+-#endif
+ 
+ #ifdef __SUPPORT_LD_DEBUG_EARLY__
+ 	/* Wahoo!!! */
+@@ -623,12 +638,7 @@
+ 	_dl_unmap_cache();
+ 
+ 	--nlist; /* Exclude the application. */
+-
+-	/* As long as atexit() is used to run the FINI functions, we can use
+-	 * alloca here. The use of atexit() should go away at some time as that
+-	 * will make Valgring happy.
+-	 */
+-	init_fini_list = alloca(nlist * sizeof(struct elf_resolve *));
++	init_fini_list = _dl_malloc(nlist * sizeof(struct elf_resolve *));
+ 	i = 0;
+ 	for (tcurr = _dl_loaded_modules->next; tcurr; tcurr = tcurr->next) {
+ 		init_fini_list[i++] = tcurr;
+@@ -798,12 +808,6 @@ next_lib2:
+ 	}
+ #endif
+ 
+-	_dl_atexit = (int (*)(void *)) (intptr_t) _dl_find_hash("atexit", _dl_symbol_tables, NULL, ELF_RTYPE_CLASS_PLT);
+-#if defined (__SUPPORT_LD_DEBUG__)
+-	_dl_on_exit = (int (*)(void (*)(int, void *),void*))
+-		(intptr_t) _dl_find_hash("on_exit", _dl_symbol_tables, NULL, ELF_RTYPE_CLASS_PLT);
+-#endif
+-
+ 	/* Notify the debugger we have added some objects. */
+ 	_dl_debug_addr->r_state = RT_ADD;
+ 	_dl_debug_state();
+@@ -828,26 +832,18 @@ next_lib2:
+ 
+ 			(*dl_elf_func) ();
+ 		}
+-		tpnt->init_flag |= FINI_FUNCS_CALLED;
+-		if (_dl_atexit && tpnt->dynamic_info[DT_FINI]) {
+-			void (*dl_elf_func) (void);
+-
+-			dl_elf_func = (void (*)(void)) (intptr_t) (tpnt->loadaddr + tpnt->dynamic_info[DT_FINI]);
+-			(*_dl_atexit) (dl_elf_func);
+-#if defined (__SUPPORT_LD_DEBUG__)
+-			if(_dl_debug && _dl_on_exit) {
+-				(*_dl_on_exit)(debug_fini, tpnt->libname);
+-			}
+-#endif
+-		}
+-#if defined (__SUPPORT_LD_DEBUG__)
+-		else {
+-			if (!_dl_atexit)
+-				_dl_dprintf(_dl_debug_file, "%s: The address of atexit () is 0x0.\n", tpnt->libname);
+-		}
+-#endif
+ 	}
+ 
++	{
++		void (*__set__dl_fini) (void *);
++
++		__set__dl_fini = (void (*)(void *)) (intptr_t) _dl_find_hash("_set__dl_fini",
++					_dl_symbol_tables, NULL, ELF_RTYPE_CLASS_PLT);
++
++		if (__set__dl_fini)
++			(*__set__dl_fini) (_dl_fini);
++	}
++	
+ 	/* Notify the debugger that all objects are now mapped in.  */
+ 	_dl_debug_addr->r_state = RT_CONSISTENT;
+ 	_dl_debug_state();
+--- uClibc-0.9.27/libc/misc/internals/__uClibc_main.c
++++ uClibc-0.9.27/libc/misc/internals/__uClibc_main.c
+@@ -158,6 +158,14 @@ void __uClibc_init(void)
+ void (*__app_fini)(void) = NULL;
+ #endif
+ 
++void attribute_hidden (*__dl_fini)(void) = NULL;
++
++void _set__dl_fini(void *fini_func)
++{
++	if (fini_func != NULL)
++		__dl_fini = fini_func;
++}
++
+ /* __uClibc_start_main is the new main stub for uClibc. This function is
+  * called from crt0 (version 0.9.16 or newer), after ALL shared libraries
+  * are initialized, just before we call the application's main function.
+--- uClibc-0.9.27/libc/stdlib/atexit.c
++++ uClibc-0.9.27/libc/stdlib/atexit.c
+@@ -222,6 +222,8 @@ pthread_mutex_t mylock = PTHREAD_RECURSI
+ extern void (*__app_fini)(void);
+ #endif
+ 
++extern void (*__dl_fini)(void);
++
+ /*
+  * Normal program termination
+  */
+@@ -239,6 +241,9 @@ void exit(int rv)
+ 		(__app_fini)();
+ #endif
+ 
++	if (__dl_fini != NULL)
++		(__dl_fini)();
++
+     /* If we are using stdio, try to shut it down.  At the very least,
+ 	 * this will attempt to commit all buffered writes.  It may also
+ 	 * unbuffer all writable files, or close them outright.

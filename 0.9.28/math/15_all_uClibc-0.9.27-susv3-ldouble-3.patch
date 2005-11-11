@@ -1,0 +1,333 @@
+--- uClibc-0.9.27/extra/Configs/Config.in.arch.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/extra/Configs/Config.in.arch	2005-06-30 09:42:04 +0200
+@@ -80,6 +80,16 @@
+ 	  If your applications require the newer C99 math library functions, 
+ 	  then answer Y.
+ 
++config UCLIBC_HAS_LONG_DOUBLE_MATH
++	bool "Enable long double support"
++	depends on DO_C99_MATH
++	depends on TARGET_i386 || TARGET_m68k || TARGET_sparc || TARGET_x86_64
++	default y
++	help
++	  If you want the uClibc math library to contain the full set of C99
++	  long double math library features, then answer Y. Don't enable it
++	  for sparc w/ 32bit ABI.
++
+ config KERNEL_SOURCE
+ 	string "Linux kernel header location"
+ 	default "/usr/src/linux"
+--- uClibc-0.9.27/include/math.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/include/math.h	2005-06-30 09:42:04 +0200
+@@ -83,7 +83,7 @@
+ # undef	_Mdouble_
+ # undef	__MATH_PRECNAME
+ 
+-# if (__STDC__ - 0 || __GNUC__ - 0) && !defined __NO_LONG_DOUBLE_MATH
++# if (__STDC__ - 0 || __GNUC__ - 0) && defined __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ /* Include the file of declarations again, this time using `long double'
+    instead of `double' and appending l to each function name.  */
+ 
+@@ -166,7 +166,7 @@
+   };
+ 
+ /* Return number of classification appropriate for X.  */
+-# ifdef __NO_LONG_DOUBLE_MATH
++# ifndef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ #  define fpclassify(x) \
+      (sizeof (x) == sizeof (float) ? __fpclassifyf (x) : __fpclassify (x))
+ # else
+@@ -178,7 +178,7 @@
+ # endif
+ 
+ /* Return nonzero value if sign of X is negative.  */
+-# ifdef __NO_LONG_DOUBLE_MATH
++# ifndef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ #  define signbit(x) \
+      (sizeof (x) == sizeof (float) ? __signbitf (x) : __signbit (x))
+ # else
+@@ -190,7 +190,7 @@
+ # endif
+ 
+ /* Return nonzero value if X is not +-Inf or NaN.  */
+-# ifdef __NO_LONG_DOUBLE_MATH
++# ifndef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ #  define isfinite(x) \
+      (sizeof (x) == sizeof (float) ? __finitef (x) : __finite (x))
+ # else
+@@ -206,7 +206,7 @@
+ 
+ /* Return nonzero value if X is a NaN.  We could use `fpclassify' but
+    we already have this functions `__isnan' and it is faster.  */
+-# ifdef __NO_LONG_DOUBLE_MATH
++# ifndef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ #  define isnan(x) \
+      (sizeof (x) == sizeof (float) ? __isnanf (x) : __isnan (x))
+ # else
+@@ -218,7 +218,7 @@
+ # endif
+ 
+ /* Return nonzero value is X is positive or negative infinity.  */
+-# ifdef __NO_LONG_DOUBLE_MATH
++# ifndef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ #  define isinf(x) \
+      (sizeof (x) == sizeof (float) ? __isinff (x) : __isinf (x))
+ # else
+--- uClibc-0.9.27/include/complex.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/include/complex.h	2005-06-30 09:42:04 +0200
+@@ -84,7 +84,7 @@
+ 
+ /* And the long double versions.  It is non-critical to define them
+    here unconditionally since `long double' is required in ISO C99.  */
+-#if __STDC__ - 0 || __GNUC__ - 0 && !defined __NO_LONG_DOUBLE_MATH
++#if __STDC__ - 0 || __GNUC__ - 0 && defined __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ # ifndef _Mlong_double_
+ #  define _Mlong_double_	long double
+ # endif
+--- uClibc-0.9.27/include/tgmath.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/include/tgmath.h	2005-06-30 09:42:04 +0200
+@@ -36,7 +36,7 @@
+ 
+ #if __GNUC_PREREQ (2, 7)
+ 
+-# ifdef __NO_LONG_DOUBLE_MATH
++# ifndef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ #  define __tgml(fct) fct
+ # else
+ #  define __tgml(fct) fct ## l
+--- uClibc-0.9.27/libc/sysdeps/linux/arm/bits/mathdef.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libc/sysdeps/linux/arm/bits/mathdef.h	2005-06-30 09:42:04 +0200
+@@ -38,11 +38,3 @@
+ # define FP_ILOGBNAN	(2147483647)
+ 
+ #endif	/* ISO C99 */
+-
+-#ifndef __NO_LONG_DOUBLE_MATH
+-/* Signal that we do not really have a `long double'.  This disables the
+-   declaration of all the `long double' function variants.  */
+-/* XXX The FPA does support this but the patterns in GCC are currently
+-   turned off.  */
+-# define __NO_LONG_DOUBLE_MATH	1
+-#endif
+--- uClibc-0.9.27/libc/sysdeps/linux/common/bits/mathdef.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libc/sysdeps/linux/common/bits/mathdef.h	2005-06-30 09:42:04 +0200
+@@ -39,9 +39,3 @@
+ # define FP_ILOGBNAN	2147483647
+ 
+ #endif	/* ISO C99 */
+-
+-#ifndef __NO_LONG_DOUBLE_MATH
+-/* Signal that we do not really have a `long double'.  The disables the
+-   declaration of all the `long double' function variants.  */
+-# define __NO_LONG_DOUBLE_MATH	1
+-#endif
+--- uClibc-0.9.27/libc/sysdeps/linux/nios/bits/mathdef.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libc/sysdeps/linux/nios/bits/mathdef.h	2005-06-30 09:42:04 +0200
+@@ -38,11 +38,3 @@
+ # define FP_ILOGBNAN	(2147483647)
+ 
+ #endif	/* ISO C99 */
+-
+-#ifndef __NO_LONG_DOUBLE_MATH
+-/* Signal that we do not really have a `long double'.  This disables the
+-   declaration of all the `long double' function variants.  */
+-/* XXX The FPA does support this but the patterns in GCC are currently
+-   turned off.  */
+-# define __NO_LONG_DOUBLE_MATH	1
+-#endif
+--- uClibc-0.9.27/libc/sysdeps/linux/nios2/bits/mathdef.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libc/sysdeps/linux/nios2/bits/mathdef.h	2005-06-30 09:42:04 +0200
+@@ -38,11 +38,3 @@
+ # define FP_ILOGBNAN	(2147483647)
+ 
+ #endif	/* ISO C99 */
+-
+-#ifndef __NO_LONG_DOUBLE_MATH
+-/* Signal that we do not really have a `long double'.  This disables the
+-   declaration of all the `long double' function variants.  */
+-/* XXX The FPA does support this but the patterns in GCC are currently
+-   turned off.  */
+-# define __NO_LONG_DOUBLE_MATH	1
+-#endif
+--- uClibc-0.9.27/libc/sysdeps/linux/powerpc/bits/mathdef.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libc/sysdeps/linux/powerpc/bits/mathdef.h	2005-06-30 09:42:04 +0200
+@@ -73,9 +73,3 @@
+ # define FP_ILOGBNAN	(2147483647)
+ 
+ #endif	/* ISO C99 */
+-
+-#ifndef __NO_LONG_DOUBLE_MATH
+-/* Signal that we do not really have a `long double'.  The disables the
+-   declaration of all the `long double' function variants.  */
+-# define __NO_LONG_DOUBLE_MATH	1
+-#endif
+--- uClibc-0.9.27/libc/sysdeps/linux/sparc/bits/mathdef.h.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libc/sysdeps/linux/sparc/bits/mathdef.h	2005-06-30 09:42:04 +0200
+@@ -64,14 +64,3 @@
+ # define FP_ILOGBNAN     (2147483647)
+ 
+ #endif	/* ISO C99 */
+-
+-#ifndef __NO_LONG_DOUBLE_MATH
+-
+-# if __WORDSIZE == 32
+-/* Signal that in 32bit ABI we do not really have a `long double'.
+-   The disables the declaration of all the `long double' function
+-   variants.  */
+-#  define __NO_LONG_DOUBLE_MATH	1
+-# endif
+-
+-#endif
+--- uClibc-0.9.27/libm/Makefile.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libm/Makefile	2005-06-30 09:42:04 +0200
+@@ -50,6 +50,7 @@
+ LIBM_SHARED_FULLNAME=libm-$(MAJOR_VERSION).$(MINOR_VERSION).$(SUBLEVEL).so
+ CFLAGS+=-D_IEEE_LIBM -D_ISOC99_SOURCE -D_SVID_SOURCE
+ FL_MSRC = float_wrappers.c
++LD_MSRC = ldouble_wrappers.c
+ 
+ ifeq ($(strip $(DO_C99_MATH)),y)
+ CSRC =   e_acos.c e_acosh.c e_asin.c e_atan2.c e_atanh.c e_cosh.c\
+@@ -77,6 +78,14 @@
+ 	nextafterf.o nexttowardf.o powf.o remainderf.o remquof.o rintf.o roundf.o \
+ 	scalblnf.o scalbnf.o sinf.o sinhf.o sqrtf.o tanf.o tanhf.o \
+ 	tgammaf.o truncf.o
++LD_MOBJ = acoshl.o acosl.o asinhl.o asinl.o atan2l.o atanhl.o atanl.o cbrtl.o \
++	ceill.o copysignl.o coshl.o cosl.o erfcl.o erfl.o exp2l.o expl.o \
++	expm1l.o fabsl.o fdiml.o floorl.o fmal.o fmaxl.o fminl.o fmodl.o \
++	frexpl.o gammal.o hypotl.o ilogbl.o ldexpl.o lgammal.o llrintl.o llroundl.o \
++	log10l.o log1pl.o log2l.o logbl.o logl.o lrintl.o lroundl.o modfl.o nearbyintl.o \
++	nextafterl.o nexttowardl.o powl.o remainderl.o remquol.o rintl.o roundl.o \
++	scalblnl.o scalbnl.o sinhl.o sinl.o sqrtl.o tanhl.o tanl.o \
++	tgammal.o truncl.o
+ else
+ # This list of math functions was taken from POSIX/IEEE 1003.1b-1993
+ CSRC =   w_acos.c w_asin.c s_atan.c w_atan2.c s_ceil.c s_cos.c \
+@@ -92,7 +101,11 @@
+ endif
+ 
+ COBJS=$(patsubst %.c,%.o, $(CSRC))
++ifeq ($(strip $(UCLIBC_HAS_LONG_DOUBLE_MATH)),y)
++OBJS=$(COBJS) $(FL_MOBJ) $(LD_MOBJ)
++else
+ OBJS=$(COBJS) $(FL_MOBJ)
++endif
+ 
+ 
+ ifneq ($(strip $(UCLIBC_HAS_FLOATS)),y)
+@@ -133,6 +146,10 @@
+ 	$(CC) $(CFLAGS) -DL_$* $< -c -o $*.o
+ 	$(STRIPTOOL) -x -R .note -R .comment $*.o
+ 
++$(LD_MOBJ): $(LD_MSRC)
++	$(CC) $(CFLAGS) -DL_$* $< -c -o $*.o
++	$(STRIPTOOL) -x -R .note -R .comment $*.o
++
+ $(OBJ): Makefile
+ 
+ tags:
+--- uClibc-0.9.27/libm/fpmacros.c.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libm/fpmacros.c	2005-06-30 09:42:04 +0200
+@@ -107,6 +107,12 @@
+ 		}
+ }
+ 
++#ifdef __UCLIBC_HAS_LONG_DOUBLE_MATH__
++int __fpclassifyl ( long double arg )
++{
++	return (long double) __fpclassify( (double)arg );
++}
++#endif
+ 
+ /***********************************************************************
+    int __isnormalf(float x) returns nonzero if and only if x is a
+@@ -166,6 +172,14 @@
+ }
+ weak_alias (__finite, finite)
+ 
++#ifdef __UCLIBC_HAS_LONG_DOUBLE_MATH__
++int __finitel ( long double x )
++{
++	return ( __fpclassifyl ( x ) >= FP_ZERO );
++}
++weak_alias (__finitel, finitel)
++#endif
++
+ 
+ /***********************************************************************
+    int __signbitf(float x) returns nonzero if and only if the sign
+@@ -209,6 +223,13 @@
+       return sign;
+ }
+ 
++#ifdef __UCLIBC_HAS_LONG_DOUBLE_MATH__
++int __signbitl ( long double arg )
++{
++	return (long double) __signbit( (double)arg );
++}
++#endif
++
+ 
+ /***********************************************************************
+ * int __isinff(float x) returns -1 if value represents  negative
+@@ -237,10 +258,10 @@
+ }
+ weak_alias (__isinf, isinf)
+ 
+-#if 0
++#ifdef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ int __isinfl ( long double x )
+ {
+-    int class = __fpclassify(x);
++    int class = __fpclassifyl(x);
+     if ( class == FP_INFINITE ) {
+ 	return ( (__signbit(x)) ? -1 : 1);
+     }
+@@ -278,10 +299,10 @@
+ }
+ weak_alias (__isnan, isnan);
+ 
+-#if 0
++#ifdef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ int __isnanl ( long double x )
+ {
+-	int class = __fpclassify(x);
++	int class = __fpclassifyl(x);
+ 	return ( class == FP_NAN );
+ }
+ weak_alias (__isnanl, isnanl);
+--- uClibc-0.9.27/libm/nan.c.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/libm/nan.c	2005-06-30 09:42:04 +0200
+@@ -35,7 +35,7 @@
+     return NAN;
+ }
+ 
+-#if 0
++#ifdef __UCLIBC_HAS_LONG_DOUBLE_MATH__
+ long double nanl (const char *tagp)
+ {
+     if (tagp[0] != '\0') {
+--- uClibc-0.9.27/test/math/Makefile.ldouble~	2005-06-30 09:41:45 +0200
++++ uClibc-0.9.27/test/math/Makefile	2005-06-30 09:42:25 +0200
+@@ -18,7 +18,7 @@
+ 
+ include ../Rules.mak
+ 
+-CFLAGS+=-D_GNU_SOURCE -DNO_LONG_DOUBLE
++CFLAGS+=-D_GNU_SOURCE
+ EXTRA_LIBS=-lm
+ PERL=/usr/bin/perl
+ 
+@@ -26,8 +26,10 @@
+ libm-tests=libm-test.c
+ libm-tests+= test-double test-idouble
+ libm-tests+= diff
+-#libm-tests+= test-float test-ifloat
+-#libm-tests+= test-ldouble test-ildouble
++libm-tests+= test-float test-ifloat
++ifeq ($(strip $(UCLIBC_HAS_LONG_DOUBLE_MATH)),y)
++libm-tests+= test-ldouble test-ildouble
++endif
+ libm-tests.o = $(addsuffix .o,$(libm-tests))
+ 
+ libm-tests-generated = libm-test-ulps.h libm-test.c

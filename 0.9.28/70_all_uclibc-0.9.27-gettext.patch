@@ -1,0 +1,11 @@
+--- extra/Configs/Config.in.mps	2005-02-06 22:14:20 +0100
++++ extra/Configs/Config.in	2005-02-06 22:18:45 +0100
+@@ -944,7 +944,7 @@
+ 
+ config UCLIBC_HAS_GETTEXT_AWARENESS
+ 	bool "Include gettext awareness"
+-	depends on UCLIBC_HAS_LOCALE && UCLIBC_MJN3_ONLY
++	depends on UCLIBC_HAS_LOCALE
+ 	default n
+ 	help
+ 	  NOTE!!!  Not yet integrated with strerror and strsignal.  NOTE!!!

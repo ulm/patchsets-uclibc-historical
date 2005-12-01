@@ -1,0 +1,14 @@
+dl_iterate_phdr is only defined when generating GNU code, so ...
+
+taken from upstream svn
+
+--- uclibc/ldso/ldso/Makefile
++++ uclibc/ldso/ldso/Makefile
+@@ -43,6 +43,7 @@
+ XXFLAGS+= -DUCLIBC_LDSO=\"$(UCLIBC_LDSO)\" $(XARCH_CFLAGS) $(CPU_CFLAGS) $(PICFLAG) \
+ 	-DUCLIBC_RUNTIME_PREFIX=\"$(RUNTIME_PREFIX)\" \
+ 	-fno-builtin -nostdinc -D_LIBC -I$(TOPDIR)ldso/include -I. -I$(TOPDIR)include
++XXFLAGS += -D_GNU_SOURCE
+ 
+ # BEWARE!!! At least mips* will die if -O0 is used!!!
+ XXFLAGS:=$(XXFLAGS:-O0=-O1)

@@ -1,0 +1,15 @@
+posix_fadvise64() wont be defined if arch lacks _syscall6() macro
+
+backported from upstream svn
+
+--- libc/sysdeps/linux/common/posix_fadvise.c
++++ libc/sysdeps/linux/common/posix_fadvise.c
+@@ -21,7 +21,7 @@
+ }
+ weak_alias(__libc_posix_fadvise, posix_fadvise);
+ 
+-#if defined __UCLIBC_HAS_LFS__ && !defined __NR_fadvise64_64
++#if defined __UCLIBC_HAS_LFS__ && (!defined __NR_fadvise64_64 || !defined _syscall6)
+ weak_alias(__libc_posix_fadvise, posix_fadvise64);
+ #endif
+ 

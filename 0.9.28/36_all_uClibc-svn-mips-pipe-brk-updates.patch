@@ -1,0 +1,178 @@
+Taken from upstream svn
+
+--- libc/sysdeps/linux/mips/pipe.S
++++ libc/sysdeps/linux/mips/pipe.S
+@@ -12,15 +12,28 @@
+         .globl  pipe
+         .ent    pipe, 0
+ pipe:
++        .frame  sp, 24, sp
++#ifdef __PIC__
++        .set    noreorder
++        .cpload $25
++        .set    reorder
+         addiu   sp,sp,-24
++        .cprestore     16
++#else
++        addiu   sp,sp,-24
++#endif
+         sw      a0,16(sp)
+         li      v0,__NR_pipe
+         syscall
+         beqz    a3, 1f
+-        la      t3, errno
+-        sw      v0, (t3)
+-        li      v0, -1
+-        b       2f
++        addiu   sp,sp,24
++        move    a0,v0
++#ifdef __PIC__
++        la      t9, __syscall_error
++        jr      t9
++#else
++        j       __syscall_error
++#endif
+ 1:
+         lw      a0, 16(sp)
+         sw      v0, 0(a0)
+--- libc/sysdeps/linux/mips/brk.c
++++ libc/sysdeps/linux/mips/brk.c
+@@ -1,5 +1,5 @@
+ /* brk system call for Linux/MIPS.
+-   Copyright (C) 2000 Free Software Foundation, Inc.
++   Copyright (C) 2000, 2005, 2006 Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+    The GNU C Library is free software; you can redistribute it and/or
+@@ -31,10 +31,11 @@
+     register long int res __asm__ ("$2");
+ 
+     asm ("move\t$4,%2\n\t"
++	 "li\t%0,%1\n\t"
+ 	 "syscall"		/* Perform the system call.  */
+ 	 : "=r" (res)
+-	 : "0" (__NR_brk), "r" (addr)
+-	 : "$4", "$7");
++	 : "I" (__NR_brk), "r" (addr)
++	 : "$4", "$7", __SYSCALL_CLOBBERS);
+     newbrk = (void *) res;
+   }
+   __curbrk = newbrk;
+--- libc/sysdeps/linux/mips/bits/syscalls.h
++++ libc/sysdeps/linux/mips/bits/syscalls.h
+@@ -18,6 +18,9 @@
+ 
+ #ifndef __ASSEMBLER__
+ 
++#define __SYSCALL_CLOBBERS "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13", \
++	"$14", "$15", "$24", "$25", "memory"
++
+ #define _syscall0(type,name) \
+ type name(void) \
+ { 									\
+@@ -33,8 +36,7 @@
+ 	".set reorder" 							\
+ 	: "=r" (__v0), "=r" (__a3) 					\
+ 	: "i" (SYS_ify(name))						\
+-	: "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13",		\
+-		"$14", "$15", "$24", "$25", "memory");			\
++	: __SYSCALL_CLOBBERS); \
+ 	err = __a3;							\
+ 	sys_result = __v0;						\
+ 	}								\
+@@ -60,8 +62,7 @@
+ 	".set reorder" 							\
+ 	: "=r" (__v0), "=r" (__a3) 					\
+ 	: "r" (__a0), "i" (SYS_ify(name)) 				\
+-	: "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13",		\
+-		"$14", "$15", "$24", "$25", "memory");			\
++	: __SYSCALL_CLOBBERS); \
+ 	err = __a3;							\
+ 	sys_result = __v0;						\
+ 	}								\
+@@ -88,8 +89,7 @@
+ 	".set	reorder" 						\
+ 	: "=r" (__v0), "=r" (__a3) 					\
+ 	: "r" (__a0), "r" (__a1), "i" (SYS_ify(name))			\
+-	: "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13",		\
+-		"$14", "$15", "$24", "$25", "memory");			\
++	: __SYSCALL_CLOBBERS); \
+ 	err = __a3;							\
+ 	sys_result = __v0;						\
+ 	}								\
+@@ -117,8 +117,7 @@
+ 	".set	reorder" 						\
+ 	: "=r" (__v0), "=r" (__a3) 					\
+ 	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (SYS_ify(name)) 	\
+-	: "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13",		\
+-		"$14", "$15", "$24", "$25", "memory");			\
++	: __SYSCALL_CLOBBERS); \
+ 	err = __a3;							\
+ 	sys_result = __v0;						\
+ 	}								\
+@@ -146,8 +145,7 @@
+ 	".set	reorder" 						\
+ 	: "=r" (__v0), "+r" (__a3) 					\
+ 	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (SYS_ify(name)) 	\
+-	: "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13",		\
+-		"$14", "$15", "$24", "$25", "memory");			\
++	: __SYSCALL_CLOBBERS); \
+ 	err = __a3;							\
+ 	sys_result = __v0;						\
+ 	}								\
+@@ -181,8 +179,7 @@
+ 	: "=r" (__v0), "+r" (__a3) 					\
+ 	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (SYS_ify(name)), 	\
+ 	  "m" (constE)							\
+-	: "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13",		\
+-		"$14", "$15", "$24", "$25", "memory");			\
++	: __SYSCALL_CLOBBERS); \
+ 	err = __a3;							\
+ 	sys_result = __v0;						\
+ 	}								\
+@@ -219,8 +216,7 @@
+ 	: "=r" (__v0), "+r" (__a3) 					\
+ 	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (SYS_ify(name)), 	\
+ 	  "m" (constE), "m" (constF)					\
+-	: "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13",		\
+-		"$14", "$15", "$24", "$25", "memory");			\
++	: __SYSCALL_CLOBBERS); \
+ 	err = __a3;							\
+ 	sys_result = __v0;						\
+ 	}								\
+@@ -260,8 +256,7 @@
+ 	: "=r" (__v0), "+r" (__a3) 					\
+ 	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (SYS_ify(name)), 	\
+ 	  "m" (constE), "m" (constF), "m" (constG)			\
+-	: "$1", "$3", "$8", "$9", "$10", "$11", "$12", "$13",		\
+-		"$14", "$15", "$24", "$25", "memory");			\
++	: __SYSCALL_CLOBBERS); \
+ 	err = __a3;							\
+ 	sys_result = __v0;						\
+ 	}								\
+--- libc/sysdeps/linux/mips/pipe.c
++++ /dev/null
+@@ -1,23 +0,0 @@
+-/* pipe system call for Linux/MIPS */
+-
+-/*see uClibc's sh/pipe.c and glibc-2.2.4's mips/pipe.S */
+-
+-#include <errno.h>
+-#include <unistd.h>
+-#include <syscall.h>
+-
+-int pipe(int *fd)
+-{
+-    register long int res __asm__ ("$2"); // v0
+-    register long int res2 __asm__ ("$3"); // v1
+-
+-    asm ("move\t$4,%2\n\t"		// $4 = a0
+-	 "syscall"		/* Perform the system call.  */
+-	 : "=r" (res)
+-	 : "0" (__NR_pipe), "r" (fd)
+-	 : "$4", "$7");
+-
+-	fd[0] = res;
+-	fd[1] = res2;
+-	return(0);
+-}

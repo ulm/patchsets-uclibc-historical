@@ -8,7 +8,7 @@ uver=$1
 pver=$2
 
 if [[ ! -d ./${uver} ]] ; then
-	echo "Error: ${uver} is not a valid binutils ver"
+	echo "Error: ${uver} is not a valid uclibc ver"
 	exit 1
 fi
 

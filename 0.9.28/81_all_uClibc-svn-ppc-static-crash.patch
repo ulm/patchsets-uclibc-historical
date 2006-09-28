@@ -1,0 +1,29 @@
+fix for crash when running static binaries
+
+--- trunk/uClibc/libc/sysdeps/linux/powerpc/crt1.S	2005/12/15 07:42:13	12892
++++ trunk/uClibc/libc/sysdeps/linux/powerpc/crt1.S	2005/12/15 07:50:05	12893
+@@ -60,7 +60,8 @@
+ 	lwz	r4,0(r9)
+ 	/* find argv one word offset from the stack pointer */
+ 	addi	r5,r9,4
+-	mr	r8,r7 /* Pass _dl_fini from ldso or NULL if statically linked */
++	mr	r8,r3 /* Pass _dl_fini from ldso or NULL if statically linked
++			Note:	 using r3 instead of r7, since linux 2.6 clobbers r7 */
+ 	/* Ok, now run uClibc's main() -- shouldn't return */
+ #ifdef __PIC__
+ 	lwz	r6,_init@got(r31)
+--- trunk/uClibc/ldso/ldso/powerpc/dl-startup.h	2005/12/15 07:42:13	12892
++++ trunk/uClibc/ldso/ldso/powerpc/dl-startup.h	2005/12/15 07:50:05	12893
+@@ -42,8 +42,10 @@
+     "	bne	2b\n"
+     "	addi	6,6,4\n"
+ #endif
+-    /* Pass a termination function pointer (in this case _dl_fini) in r7.  */
+-    "	lwz	7,_dl_fini@got(31)\n"
++    /* Pass a termination function pointer (in this case _dl_fini) in r3. */
++    /* Paulus promized he would keep r3 zero in the exec ABI. */
++    "	lwz	3,_dl_fini@got(31)\n"
++    "	mr	7,3\n"		/* Pass _dl_fini in r7 to maintain compat */
+     "	bctr\n" /* Jump to entry point */
+     "	.size	_start,.-_start\n"
+     "	.previous\n"

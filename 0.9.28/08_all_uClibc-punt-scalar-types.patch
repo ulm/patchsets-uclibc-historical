@@ -1,0 +1,13 @@
+These have been punted upstream
+
+--- libc/sysdeps/linux/common/bits/types.h
++++ libc/sysdeps/linux/common/bits/types.h
+@@ -129,8 +129,6 @@
+ typedef __loff_t __off64_t;
+ 
+ /* Used in XTI.  */
+-typedef long int __t_scalar_t;
+-typedef unsigned long int __t_uscalar_t;
+ 
+ /* Duplicates info from stdint.h but this is used in unistd.h.  */
+ typedef int __intptr_t;

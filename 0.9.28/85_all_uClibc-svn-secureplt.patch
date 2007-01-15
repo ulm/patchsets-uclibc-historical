@@ -1,0 +1,365 @@
+Index: Rules.mak
+===================================================================
+--- Rules.mak	(revision 17161)
++++ Rules.mak	(revision 17162)
+@@ -284,6 +284,8 @@
+ # faster code.
+ 	PICFLAG:=-fpic
+ 	PIEFLAG_NAME:=-fpie
++	PPC_HAS_REL16:=$(shell echo -e "\t.text\n\taddis 11,30,_GLOBAL_OFFSET_TABLE_-.@ha" | $(CC) -c -x assembler -o /dev/null -  2> /dev/null && echo -n y || echo -n n)
++	CPU_CFLAGS-$(PPC_HAS_REL16)+= -DHAVE_ASM_PPC_REL16
+ endif
+ 
+ ifeq ($(TARGET_ARCH),frv)
+Index: ldso/ldso/powerpc/dl-startup.h
+===================================================================
+--- ldso/ldso/powerpc/dl-startup.h	(revision 17161)
++++ ldso/ldso/powerpc/dl-startup.h	(revision 17162)
+@@ -16,8 +16,15 @@
+     "	bl	_dl_start@local\n" /* Perform relocation */
+     /*  Save the address of the apps entry point in CTR register */
+     "	mtctr	3\n" /* application entry point */
++#ifdef HAVE_ASM_PPC_REL16
++    "	bcl	20,31,1f\n"
++    "1:	mflr	31\n"
++    "	addis	31,31,_GLOBAL_OFFSET_TABLE_-1b@ha\n"
++    "	addi	31,31,_GLOBAL_OFFSET_TABLE_-1b@l\n"
++#else
+     "	bl	_GLOBAL_OFFSET_TABLE_-4@local\n" /*  Put our GOT pointer in r31, */
+     "	mflr	31\n"
++#endif
+     "	addi	1,1,16\n" /* Restore SP */
+     "	lwz	7,_dl_skip_args@got(31)\n" /* load EA of _dl_skip_args */
+     "	lwz	7,0(7)\n"	/* Load word from _dl_skip_args */
+Index: ldso/ldso/powerpc/elfinterp.c
+===================================================================
+--- ldso/ldso/powerpc/elfinterp.c	(revision 17161)
++++ ldso/ldso/powerpc/elfinterp.c	(revision 17162)
+@@ -41,6 +41,12 @@
+ 	Elf32_Word rel_offset_words;
+ 	Elf32_Word dlrr = (Elf32_Word) _dl_linux_resolve;
+ 
++	if (tpnt->dynamic_info[DT_JMPREL] == 0)
++		return;
++	if (tpnt->dynamic_info[DT_PPC_GOT_IDX] != 0) {
++		tpnt->dynamic_info[DT_PPC_GOT_IDX] += tpnt->loadaddr;
++		return;
++	}
+ 	num_plt_entries = tpnt->dynamic_info[DT_PLTRELSZ] / sizeof(ELF_RELOC);
+ 	rel_offset_words = PLT_DATA_START_WORDS(num_plt_entries);
+ 	data_words = (Elf32_Word) (plt + rel_offset_words);
+@@ -148,32 +154,35 @@
+ 	if (_dl_debug_reloc && _dl_debug_detail)
+ 		_dl_dprintf(_dl_debug_file, "%x\n", finaladdr);
+ #endif
+-	delta = finaladdr - (Elf32_Word)reloc_addr;
+-	if (delta<<6>>6 == delta) {
+-		*reloc_addr = OPCODE_B(delta);
+-	} else if (finaladdr <= 0x01fffffc) {
+-		*reloc_addr = OPCODE_BA (finaladdr);
++	if (tpnt->dynamic_info[DT_PPC_GOT_IDX] != 0) {
++		*reloc_addr = finaladdr;
+ 	} else {
+-		/* Warning: we don't handle double-sized PLT entries */
+-		Elf32_Word *plt, *data_words, index, offset;
++		delta = finaladdr - (Elf32_Word)reloc_addr;
++		if (delta<<6>>6 == delta) {
++			*reloc_addr = OPCODE_B(delta);
++		} else if (finaladdr <= 0x01fffffc) {
++			*reloc_addr = OPCODE_BA (finaladdr);
++		} else {
++			/* Warning: we don't handle double-sized PLT entries */
++			Elf32_Word *plt, *data_words, index, offset;
+ 
+-		plt = (Elf32_Word *)tpnt->dynamic_info[DT_PLTGOT];
+-		offset = reloc_addr - plt;
+-		index = (offset - PLT_INITIAL_ENTRY_WORDS)/2;
+-		data_words = (Elf32_Word *)tpnt->data_words;
+-		reloc_addr += 1;
++			plt = (Elf32_Word *)tpnt->dynamic_info[DT_PLTGOT];
++			offset = reloc_addr - plt;
++			index = (offset - PLT_INITIAL_ENTRY_WORDS)/2;
++			data_words = (Elf32_Word *)tpnt->data_words;
++			reloc_addr += 1;
+ 
+-		data_words[index] = finaladdr;
++			data_words[index] = finaladdr;
++			PPC_SYNC;
++			*reloc_addr =  OPCODE_B ((PLT_LONGBRANCH_ENTRY_WORDS - (offset+1)) * 4);
++		}
++
++		/* instructions were modified */
++		PPC_DCBST(reloc_addr);
+ 		PPC_SYNC;
+-		*reloc_addr =  OPCODE_B ((PLT_LONGBRANCH_ENTRY_WORDS - (offset+1)) * 4);
++		PPC_ICBI(reloc_addr);
++		PPC_ISYNC;
+ 	}
+-
+-	/* instructions were modified */
+-	PPC_DCBST(reloc_addr);
+-	PPC_SYNC;
+-	PPC_ICBI(reloc_addr);
+-	PPC_ISYNC;
+-
+ 	return finaladdr;
+ }
+ 
+@@ -219,28 +228,33 @@
+ 		goto out_nocode; /* No code code modified */
+ 	case R_PPC_JMP_SLOT:
+ 	{
+-		Elf32_Sword delta = finaladdr - (Elf32_Word)reloc_addr;
+-		if (delta<<6>>6 == delta) {
+-			*reloc_addr = OPCODE_B(delta);
+-		} else if (finaladdr <= 0x01fffffc) {
+-			*reloc_addr = OPCODE_BA (finaladdr);
++		if (tpnt->dynamic_info[DT_PPC_GOT_IDX] != 0) {
++			*reloc_addr = finaladdr;
++			goto out_nocode; /* No code code modified */
+ 		} else {
+-			/* Warning: we don't handle double-sized PLT entries */
+-			Elf32_Word *plt, *data_words, index, offset;
++			Elf32_Sword delta = finaladdr - (Elf32_Word)reloc_addr;
++			if (delta<<6>>6 == delta) {
++				*reloc_addr = OPCODE_B(delta);
++			} else if (finaladdr <= 0x01fffffc) {
++				*reloc_addr = OPCODE_BA (finaladdr);
++			} else {
++				/* Warning: we don't handle double-sized PLT entries */
++				Elf32_Word *plt, *data_words, index, offset;
+ 
+-			plt = (Elf32_Word *)tpnt->dynamic_info[DT_PLTGOT];
+-			offset = reloc_addr - plt;
+-			index = (offset - PLT_INITIAL_ENTRY_WORDS)/2;
+-			data_words = (Elf32_Word *)tpnt->data_words;
++				plt = (Elf32_Word *)tpnt->dynamic_info[DT_PLTGOT];
++				offset = reloc_addr - plt;
++				index = (offset - PLT_INITIAL_ENTRY_WORDS)/2;
++				data_words = (Elf32_Word *)tpnt->data_words;
+ 
+-			data_words[index] = finaladdr;
+-			reloc_addr[0] = OPCODE_LI(11,index*4);
+-			reloc_addr[1] = OPCODE_B((PLT_LONGBRANCH_ENTRY_WORDS - (offset+1)) * 4);
++				data_words[index] = finaladdr;
++				reloc_addr[0] = OPCODE_LI(11,index*4);
++				reloc_addr[1] = OPCODE_B((PLT_LONGBRANCH_ENTRY_WORDS - (offset+1)) * 4);
+ 
+-			/* instructions were modified */
+-			PPC_DCBST(reloc_addr+1);
+-			PPC_SYNC;
+-			PPC_ICBI(reloc_addr+1);
++				/* instructions were modified */
++				PPC_DCBST(reloc_addr+1);
++				PPC_SYNC;
++				PPC_ICBI(reloc_addr+1);
++			}
+ 		}
+ 		break;
+ 	}
+@@ -309,9 +323,22 @@
+ 	Elf32_Word *plt, offset, i,  num_plt_entries, rel_offset_words;
+ 
+ 	num_plt_entries = rel_size / sizeof(ELF_RELOC);
++	plt = (Elf32_Word *)tpnt->dynamic_info[DT_PLTGOT];
++	if (tpnt->dynamic_info[DT_PPC_GOT_IDX] != 0) {
++		/* Secure PLT */
++		Elf32_Addr *got = (Elf32_Addr *)tpnt->dynamic_info[DT_PPC_GOT_IDX];
++		Elf32_Word dlrr = (Elf32_Word) _dl_linux_resolve;
+ 
++		got[1] = (Elf32_Addr) dlrr;
++		got[2] = (Elf32_Addr) tpnt;
++
++		/* Relocate everything in .plt by the load address offset.  */
++		while (num_plt_entries-- != 0)
++			*plt++ += tpnt->loadaddr;
++		return;
++	}
++
+ 	rel_offset_words = PLT_DATA_START_WORDS(num_plt_entries);
+-	plt = (Elf32_Word *)tpnt->dynamic_info[DT_PLTGOT];
+ 
+ 	/* Set up the lazy PLT entries.  */
+ 	offset = PLT_INITIAL_ENTRY_WORDS;
+Index: ldso/ldso/powerpc/dl-sysdep.h
+===================================================================
+--- ldso/ldso/powerpc/dl-sysdep.h	(revision 17161)
++++ ldso/ldso/powerpc/dl-sysdep.h	(revision 17162)
+@@ -89,23 +89,38 @@
+    DT_RELA table.  */
+ #define ELF_MACHINE_PLTREL_OVERLAP 1
+ 
++/* Return the value of the GOT pointer.  */
++static inline Elf32_Addr * __attribute__ ((const))
++ppc_got (void)
++{
++	Elf32_Addr *got;
++#ifdef HAVE_ASM_PPC_REL16
++	asm ("	bcl 20,31,1f\n"
++	     "1:mflr %0\n"
++	     "	addis %0,%0,_GLOBAL_OFFSET_TABLE_-1b@ha\n"
++	     "	addi %0,%0,_GLOBAL_OFFSET_TABLE_-1b@l\n"
++	     : "=b" (got) : : "lr");
++#else
++	asm (" bl _GLOBAL_OFFSET_TABLE_-4@local"
++	     : "=l" (got));
++#endif
++	return got;
++}
++
+ /* Return the link-time address of _DYNAMIC, stored as
+    the first value in the GOT. */
+-static inline Elf32_Addr
++static inline Elf32_Addr __attribute__ ((const))
+ elf_machine_dynamic (void)
+ {
+-  Elf32_Addr *got;
+-  asm (" bl _GLOBAL_OFFSET_TABLE_-4@local"
+-       : "=l"(got));
+-  return *got;
++	return *ppc_got();
+ }
+ 
+ /* Return the run-time load address of the shared object.  */
+-static inline Elf32_Addr
++static inline Elf32_Addr __attribute__ ((const))
+ elf_machine_load_address (void)
+ {
+-  unsigned int *got;
+-  unsigned int *branchaddr;
++  Elf32_Addr *branchaddr;
++  Elf32_Addr runtime_dynamic;
+ 
+   /* This is much harder than you'd expect.  Possibly I'm missing something.
+      The 'obvious' way:
+@@ -136,19 +151,17 @@
+      the address ourselves. That gives us the following code: */
+ 
+   /* Get address of the 'b _DYNAMIC@local'...  */
+-  asm ("bl 0f ;"
++  asm ("bcl 20,31,0f;"
+        "b _DYNAMIC@local;"
+        "0:"
+        : "=l"(branchaddr));
+ 
+-  /* ... and the address of the GOT.  */
+-  asm (" bl _GLOBAL_OFFSET_TABLE_-4@local"
+-       : "=l"(got));
+-
+   /* So now work out the difference between where the branch actually points,
+      and the offset of that location in memory from the start of the file.  */
+-  return ((Elf32_Addr)branchaddr - *got
+-	  + ((int)(*branchaddr << 6 & 0xffffff00) >> 6));
++  runtime_dynamic = ((Elf32_Addr) branchaddr
++		     + ((Elf32_Sword) (*branchaddr << 6 & 0xffffff00) >> 6));
++
++  return runtime_dynamic - elf_machine_dynamic ();
+ }
+ 
+ static inline void
+@@ -163,3 +176,12 @@
+ 		*reloc_addr = load_off + rpnt->r_addend;
+ 	} while (--relative_count);
+ }
++
++#define ARCH_NUM 1
++#define DT_PPC_GOT_IDX	(DT_NUM + OS_NUM)
++
++#define ARCH_DYNAMIC_INFO(dpnt,  dynamic, debug_addr) \
++do { \
++if (dpnt->d_tag == DT_PPC_GOT) \
++     dynamic[DT_PPC_GOT_IDX] = dpnt->d_un.d_ptr; \
++} while (0)
+Index: libc/sysdeps/linux/powerpc/brk.S
+===================================================================
+--- libc/sysdeps/linux/powerpc/brk.S	(revision 17161)
++++ libc/sysdeps/linux/powerpc/brk.S	(revision 17162)
+@@ -50,8 +50,15 @@
+ 	lwz     r6,8(r1)
+ #ifdef __PIC__
+ 	mflr    r4
++# ifdef HAVE_ASM_PPC_REL16
++	bcl	20,31,1f
++1:	mflr	r5
++	addis	r5,r5,_GLOBAL_OFFSET_TABLE_-1b@ha
++	addi	r5,r5,_GLOBAL_OFFSET_TABLE_-1b@l
++# else	
+ 	bl      _GLOBAL_OFFSET_TABLE_@local-4
+ 	mflr    r5
++# endif
+ 	lwz     r5,__curbrk@got(r5)
+ 	mtlr    r4
+ 	stw     r3,0(r5)
+Index: libc/sysdeps/linux/powerpc/setjmp.S
+===================================================================
+--- libc/sysdeps/linux/powerpc/setjmp.S	(revision 17161)
++++ libc/sysdeps/linux/powerpc/setjmp.S	(revision 17162)
+@@ -76,9 +76,7 @@
+ FP(	stfd fp30,((JB_FPRS+16*2)*4)(3))
+ 	stw  r31,((JB_GPRS+17)*4)(3)
+ FP(	stfd fp31,((JB_FPRS+17*2)*4)(3))
+-#ifdef __PIC__
+-	b __sigjmp_save@plt
+-#else
+-	b __sigjmp_save
+-#endif
++
++	b __sigjmp_save@local
++
+ .size     __sigsetjmp,.-__sigsetjmp
+Index: libc/sysdeps/linux/powerpc/bsd-_setjmp.S
+===================================================================
+--- libc/sysdeps/linux/powerpc/bsd-_setjmp.S	(revision 17161)
++++ libc/sysdeps/linux/powerpc/bsd-_setjmp.S	(revision 17162)
+@@ -29,9 +29,7 @@
+ 
+ _setjmp:
+ 	li r4,0			/* Set second argument to 0.  */
+-#ifdef __PIC__
+-	b __sigsetjmp@plt
+-#else
+-	b __sigsetjmp
+-#endif
++
++	b __sigsetjmp@local
++
+ .size     _setjmp,.-_setjmp
+Index: libc/sysdeps/linux/powerpc/bsd-setjmp.S
+===================================================================
+--- libc/sysdeps/linux/powerpc/bsd-setjmp.S	(revision 17161)
++++ libc/sysdeps/linux/powerpc/bsd-setjmp.S	(revision 17162)
+@@ -29,11 +29,9 @@
+ 
+ __setjmp:
+ 	li r4,1			/* Set second argument to 1.  */
+-#ifdef __PIC__
+-	b __sigsetjmp@plt
+-#else
+-	b __sigsetjmp
+-#endif
++
++	b __sigsetjmp@local
++
+ .size     __setjmp,.-__setjmp
+ 
+ .globl     setjmp;
+Index: libc/sysdeps/linux/powerpc/crt1.S
+===================================================================
+--- libc/sysdeps/linux/powerpc/crt1.S	(revision 17161)
++++ libc/sysdeps/linux/powerpc/crt1.S	(revision 17162)
+@@ -48,8 +48,15 @@
+ 	mr	r9,r1 	/* Save the stack pointer and pass it to __uClibc_main */
+ 	clrrwi	r1,r1,4	/* Align stack ptr to 16 bytes */
+ #ifdef __PIC__
++# ifdef HAVE_ASM_PPC_REL16
++	bcl	20,31,1f
++1:	mflr	r31
++	addis	r31,r31,_GLOBAL_OFFSET_TABLE_-1b@ha
++	addi	r31,r31,_GLOBAL_OFFSET_TABLE_-1b@l
++# else
+ 	bl	_GLOBAL_OFFSET_TABLE_-4@local
+ 	mflr	r31
++# endif
+ #endif
+ 	/* Set up an initial stack frame, and clear the LR.  */
+ 	li	r0,0

@@ -1,0 +1,1007 @@
+--- uClibc/libm/Makefile	2005-03-09 22:51:28 +0100
++++ uClibc/libm/Makefile	2005-06-10 14:30:56 +0200
+@@ -50,31 +50,33 @@
+ LIBM_SHARED_FULLNAME=libm-$(MAJOR_VERSION).$(MINOR_VERSION).$(SUBLEVEL).so
+ CFLAGS+=-D_IEEE_LIBM -D_ISOC99_SOURCE -D_SVID_SOURCE
+ FL_MSRC = float_wrappers.c
+ 
+ ifeq ($(strip $(DO_C99_MATH)),y)
+ CSRC =   e_acos.c e_acosh.c e_asin.c e_atan2.c e_atanh.c e_cosh.c\
+          e_exp.c e_fmod.c e_gamma.c e_gamma_r.c e_hypot.c e_j0.c\
+-         e_j1.c e_jn.c e_lgamma.c e_lgamma_r.c e_log.c e_log10.c\
++         e_j1.c e_jn.c e_lgamma.c e_lgamma_r.c e_log.c e_log2.c e_log10.c\
+          e_pow.c e_remainder.c e_rem_pio2.c e_scalb.c e_sinh.c\
+          e_sqrt.c k_cos.c k_rem_pio2.c k_sin.c k_standard.c k_tan.c\
+          s_asinh.c s_atan.c s_cbrt.c s_ceil.c s_copysign.c s_cos.c\
+-         s_erf.c s_expm1.c s_fabs.c s_finite.c s_floor.c s_frexp.c\
+-         s_ilogb.c s_ldexp.c s_lib_version.c s_log1p.c s_logb.c\
+-         s_matherr.c s_modf.c s_nextafter.c s_rint.c s_scalbn.c\
+-         s_signgam.c s_significand.c s_sin.c s_tan.c s_tanh.c\
++         s_erf.c s_expm1.c s_fabs.c s_fdim.c s_fma.c s_fmax.c s_fmin.c\
++	 s_finite.c s_floor.c s_frexp.c s_ilogb.c s_ldexp.c\
++         s_lib_version.c s_llrint.c s_llround.c s_log1p.c s_logb.c\
++	 s_lrint.c s_lround.c s_matherr.c s_modf.c s_nearbyint.c s_nextafter.c\
++         s_remquo.c s_rint.c s_round.c s_scalbln.c s_scalbn.c\
++         s_signgam.c s_significand.c s_sin.c s_tan.c s_tanh.c s_trunc.c\
+          w_acos.c w_acosh.c w_asin.c w_atan2.c w_atanh.c w_cabs.c\
+-         w_cosh.c w_drem.c w_exp.c w_fmod.c w_gamma.c w_gamma_r.c\
++         w_cosh.c w_drem.c w_exp.c w_exp2.c w_fmod.c w_gamma.c w_gamma_r.c\
+          w_hypot.c w_j0.c w_j1.c w_jn.c w_lgamma.c w_lgamma_r.c\
+-         w_log.c w_log10.c w_pow.c w_remainder.c w_scalb.c w_sinh.c\
+-         w_sqrt.c fpmacros.c nan.c s_ceilf.c s_floorf.c
++         w_log.c w_log2.c w_log10.c w_nexttoward.c w_pow.c w_remainder.c\
++         w_scalb.c w_sinh.c w_sqrt.c w_tgamma.c fpmacros.c nan.c
+ FL_MOBJ = acosf.o acoshf.o asinf.o asinhf.o atan2f.o atanf.o atanhf.o cbrtf.o \
+ 	ceilf.o copysignf.o cosf.o coshf.o erfcf.o erff.o exp2f.o expf.o \
+ 	expm1f.o fabsf.o fdimf.o floorf.o fmaf.o fmaxf.o fminf.o fmodf.o \
+-	frexpf.o hypotf.o ilogbf.o ldexpf.o lgammaf.o log10f.o log1pf.o \
+-	log2f.o logbf.o logf.o lrintf.o lroundf.o modff.o nearbyintf.o \
+-	nextafterf.o powf.o remainderf.o remquof.o rintf.o roundf.o \
++	frexpf.o gammaf.o hypotf.o ilogbf.o ldexpf.o lgammaf.o llrintf.o llroundf.o \
++	log10f.o log1pf.o log2f.o logbf.o logf.o lrintf.o lroundf.o modff.o nearbyintf.o \
++	nextafterf.o nexttowardf.o powf.o remainderf.o remquof.o rintf.o roundf.o \
+ 	scalblnf.o scalbnf.o sinf.o sinhf.o sqrtf.o tanf.o tanhf.o \
+ 	tgammaf.o truncf.o
+ else
+ # This list of math functions was taken from POSIX/IEEE 1003.1b-1993
+ CSRC =   w_acos.c w_asin.c s_atan.c w_atan2.c s_ceil.c s_cos.c \
+--- uClibc/libm/float_wrappers.c	2005-03-09 22:51:31 +0100
++++ uClibc/libm/float_wrappers.c	2005-06-10 14:30:55 +0200
+@@ -24,27 +24,6 @@
+ 
+ #include "math.h"
+ 
+-/* For the time being, do _NOT_ implement these functions
+- * that are defined by SuSv3 */
+-#if 0
+-float       exp2f(float);
+-float       fmaf(float, float, float);
+-float       fmaxf(float, float);
+-float       fminf(float, float);
+-float       fdimf(float, float);
+-long long   llrintf(float);
+-long long   llroundf(float);
+-long        lroundf(float);
+-float       log2f(float);
+-long        lrintf(float);
+-float       nexttowardf(float, long double);
+-float       remquof(float, float, int *);
+-float       roundf(float);
+-float       scalblnf(float, long);
+-float       truncf(float);
+-float       tgammaf(float);
+-#endif
+-
+ /* Implement the following, as defined by SuSv3 */
+ #if 0
+ float       acosf(float);
+@@ -61,9 +40,14 @@
+ float       coshf(float);
+ float       erfcf(float);
+ float       erff(float);
++float       exp2f(float);
+ float       expf(float);
+ float       expm1f(float);
+ float       fabsf(float);
++float       fdimf(float, float);
++float       fmaf(float, float, float);
++float       fmaxf(float, float);
++float       fminf(float, float);
+ float       floorf(float);
+ float       fmodf(float, float);
+ float       frexpf(float value, int *);
+@@ -71,22 +55,33 @@
+ int         ilogbf(float);
+ float       ldexpf(float, int);
+ float       lgammaf(float);
++long long   llrintf(float);
++long long   llroundf(float);
+ float       log10f(float);
+ float       log1pf(float);
++float       log2f(float);
+ float       logbf(float);
+ float       logf(float);
++long        lrintf(float);
++long        lroundf(float);
+ float       modff(float, float *);
+ float       nearbyintf(float);
+ float       nextafterf(float, float);
++float       nexttowardf(float, long double);
+ float       powf(float, float);
+ float       remainderf(float, float);
++float       remquof(float, float, int *);
+ float       rintf(float);
++float       roundf(float);
+ float       scalbnf(float, int);
++float       scalblnf(float, long);
+ float       sinf(float);
+ float       sinhf(float);
+ float       sqrtf(float);
+ float       tanf(float);
+ float       tanhf(float);
++float       tgammaf(float);
++float       truncf(float);
+ #endif
+ 
+ #ifdef L_acosf
+@@ -201,14 +196,12 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_exp2f
+ float exp2f (float x)
+ {
+ 	return (float) exp2( (double)x );
+ }
+ #endif
+-#endif
+ 
+ 
+ #ifdef L_expf
+@@ -235,14 +228,12 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_fdimf
+ float fdimf (float x, float y)
+ {
+ 	return (float) fdim( (double)x, (double)y );
+ }
+ #endif
+-#endif
+ 
+ 
+ #ifdef L_floorf
+@@ -253,7 +244,6 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_fmaf
+ float fmaf (float x, float y, float z)
+ {
+@@ -276,7 +266,6 @@
+ 	return (float) fmin( (double)x, (double)y );
+ }
+ #endif
+-#endif
+ 
+ 
+ #ifdef L_fmodf
+@@ -327,7 +316,6 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_llrintf
+ long long llrintf (float x)
+ {
+@@ -342,7 +330,6 @@
+ 	return (float) llround( (double)x );
+ }
+ #endif
+-#endif
+ 
+ #ifdef L_log10f
+ float log10f (float x)
+@@ -360,14 +347,12 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_log2f
+ float log2f (float x)
+ {
+ 	return (float) log2( (double)x );
+ }
+ #endif
+-#endif
+ 
+ 
+ #ifdef L_logbf
+@@ -386,7 +371,6 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_lrintf
+ long lrintf (float x)
+ {
+@@ -401,7 +385,6 @@
+ 	return (float) lround( (double)x );
+ }
+ #endif
+-#endif
+ 
+ 
+ #ifdef L_modff
+@@ -416,14 +399,12 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_nearbyintf
+ float nearbyintf (float x)
+ {
+ 	return (float) nearbyint( (double)x );
+ }
+ #endif
+-#endif
+ 
+ 
+ #ifdef L_nextafterf
+@@ -434,14 +415,13 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_nexttowardf
+ float nexttowardf (float x, long double y)
+ {
+ 	return (float) nexttoward( (double)x, (double)y );
+ }
+ #endif
+-#endif
++
+ 
+ #ifdef L_powf
+ float powf (float x, float y)
+@@ -459,14 +439,12 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_remquof
+ float remquof (float x, float y, int *quo)
+ {
+ 	return (float) remquo( (double)x, (double)y, quo );
+ }
+ #endif
+-#endif
+ 
+ 
+ #ifdef L_rintf
+@@ -477,7 +455,6 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_roundf
+ float roundf (float x)
+ {
+@@ -492,7 +469,6 @@
+ 	return (float) scalbln( (double)x, exp );
+ }
+ #endif
+-#endif
+ 
+ 
+ #ifdef L_scalbnf
+@@ -543,7 +519,6 @@
+ #endif
+ 
+ 
+-#if 0
+ #ifdef L_tgammaf
+ float tgammaf (float x)
+ {
+@@ -558,6 +533,4 @@
+ 	return (float) trunc( (double)x );
+ }
+ #endif
+-#endif
+-
+ 
+--- uClibc/libm/math_private.h	2005-03-09 22:51:31 +0100
++++ uClibc/libm/math_private.h	2005-06-10 14:30:55 +0200
+@@ -154,37 +154,38 @@
+ } while (0)
+ 
+ /* ieee style elementary functions */
+-extern double __ieee754_sqrt __P((double));
+ extern double __ieee754_acos __P((double));
+ extern double __ieee754_acosh __P((double));
+-extern double __ieee754_log __P((double));
+-extern double __ieee754_atanh __P((double));
+ extern double __ieee754_asin __P((double));
+ extern double __ieee754_atan2 __P((double,double));
+-extern double __ieee754_exp __P((double));
++extern double __ieee754_atanh __P((double));
+ extern double __ieee754_cosh __P((double));
++extern double __ieee754_exp __P((double));
+ extern double __ieee754_fmod __P((double,double));
+-extern double __ieee754_pow __P((double,double));
+-extern double __ieee754_lgamma_r __P((double,int *));
+-extern double __ieee754_gamma_r __P((double,int *));
+-extern double __ieee754_lgamma __P((double));
+ extern double __ieee754_gamma __P((double));
+-extern double __ieee754_log10 __P((double));
+-extern double __ieee754_sinh __P((double));
++extern double __ieee754_gamma_r __P((double,int *));
+ extern double __ieee754_hypot __P((double,double));
+ extern double __ieee754_j0 __P((double));
+ extern double __ieee754_j1 __P((double));
+-extern double __ieee754_y0 __P((double));
+-extern double __ieee754_y1 __P((double));
+ extern double __ieee754_jn __P((int,double));
+-extern double __ieee754_yn __P((int,double));
+-extern double __ieee754_remainder __P((double,double));
++extern double __ieee754_lgamma __P((double));
++extern double __ieee754_lgamma_r __P((double,int *));
++extern double __ieee754_log __P((double));
++extern double __ieee754_log10 __P((double));
++extern double __ieee754_log2 __P((double));
++extern double __ieee754_pow __P((double,double));
+ extern int    __ieee754_rem_pio2 __P((double,double*));
++extern double __ieee754_remainder __P((double,double));
+ #if defined(_SCALB_INT)
+ extern double __ieee754_scalb __P((double,int));
+ #else
+ extern double __ieee754_scalb __P((double,double));
+ #endif
++extern double __ieee754_sinh __P((double));
++extern double __ieee754_sqrt __P((double));
++extern double __ieee754_y0 __P((double));
++extern double __ieee754_y1 __P((double));
++extern double __ieee754_yn __P((int,double));
+ 
+ /* fdlibm kernel function */
+ extern double __kernel_standard __P((double,double,int));
+@@ -193,40 +194,4 @@
+ extern double __kernel_tan __P((double,double,int));
+ extern int    __kernel_rem_pio2 __P((double*,double*,int,int,int,const int*));
+ 
+-
+-/* ieee style elementary float functions */
+-extern float __ieee754_sqrtf __P((float));
+-extern float __ieee754_acosf __P((float));
+-extern float __ieee754_acoshf __P((float));
+-extern float __ieee754_logf __P((float));
+-extern float __ieee754_atanhf __P((float));
+-extern float __ieee754_asinf __P((float));
+-extern float __ieee754_atan2f __P((float,float));
+-extern float __ieee754_expf __P((float));
+-extern float __ieee754_coshf __P((float));
+-extern float __ieee754_fmodf __P((float,float));
+-extern float __ieee754_powf __P((float,float));
+-extern float __ieee754_lgammaf_r __P((float,int *));
+-extern float __ieee754_gammaf_r __P((float,int *));
+-extern float __ieee754_lgammaf __P((float));
+-extern float __ieee754_gammaf __P((float));
+-extern float __ieee754_log10f __P((float));
+-extern float __ieee754_sinhf __P((float));
+-extern float __ieee754_hypotf __P((float,float));
+-extern float __ieee754_j0f __P((float));
+-extern float __ieee754_j1f __P((float));
+-extern float __ieee754_y0f __P((float));
+-extern float __ieee754_y1f __P((float));
+-extern float __ieee754_jnf __P((int,float));
+-extern float __ieee754_ynf __P((int,float));
+-extern float __ieee754_remainderf __P((float,float));
+-extern int   __ieee754_rem_pio2f __P((float,float*));
+-extern float __ieee754_scalbf __P((float,float));
+-
+-/* float versions of fdlibm kernel functions */
+-extern float __kernel_sinf __P((float,float,int));
+-extern float __kernel_cosf __P((float,float));
+-extern float __kernel_tanf __P((float,float,int));
+-extern int   __kernel_rem_pio2f __P((float*,float*,int,int,int,const int*));
+-
+ #endif /* _MATH_PRIVATE_H_ */
+--- uClibc-0.9.27/libm/s_ceilf.c.mps	2005-03-11 02:58:02 +0100
++++ uClibc-0.9.27/libm/s_ceilf.c	2005-03-11 03:44:39 +0100
+@@ -1,62 +0,0 @@
+-/* s_ceilf.c -- float version of s_ceil.c.
+- * Conversion to float by Ian Lance Taylor, Cygnus Support, ian@cygnus.com.
+- */
+-
+-/*
+- * ====================================================
+- * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+- *
+- * Developed at SunPro, a Sun Microsystems, Inc. business.
+- * Permission to use, copy, modify, and distribute this
+- * software is freely granted, provided that this notice
+- * is preserved.
+- * ====================================================
+- */
+-
+-#if defined(LIBM_SCCS) && !defined(lint)
+-static char rcsid[] = "$NetBSD: s_ceilf.c,v 1.4 1995/05/10 20:46:55 jtc Exp $";
+-#endif
+-
+-#include "math.h"
+-#include "math_private.h"
+-
+-#ifdef __STDC__
+-static const float huge = 1.0e30;
+-#else
+-static float huge = 1.0e30;
+-#endif
+-
+-#ifdef __STDC__
+-	float __ceilf(float x)
+-#else
+-	float __ceilf(x)
+-	float x;
+-#endif
+-{
+-	int32_t i0,j0;
+-	u_int32_t i;
+-
+-	GET_FLOAT_WORD(i0,x);
+-	j0 = ((i0>>23)&0xff)-0x7f;
+-	if(j0<23) {
+-	    if(j0<0) { 	/* raise inexact if x != 0 */
+-		if(huge+x>(float)0.0) {/* return 0*sign(x) if |x|<1 */
+-		    if(i0<0) {i0=0x80000000;}
+-		    else if(i0!=0) { i0=0x3f800000;}
+-		}
+-	    } else {
+-		i = (0x007fffff)>>j0;
+-		if((i0&i)==0) return x; /* x is integral */
+-		if(huge+x>(float)0.0) {	/* raise inexact flag */
+-		    if(i0>0) i0 += (0x00800000)>>j0;
+-		    i0 &= (~i);
+-		}
+-	    }
+-	} else {
+-	    if(j0==0x80) return x+x;	/* inf or NaN */
+-	    else return x;		/* x is integral */
+-	}
+-	SET_FLOAT_WORD(x,i0);
+-	return x;
+-}
+-weak_alias (__ceilf, ceilf)
+--- uClibc-0.9.27/libm/s_floorf.c.mps	2005-03-11 02:58:02 +0100
++++ uClibc-0.9.27/libm/s_floorf.c	2005-03-11 03:44:33 +0100
+@@ -1,71 +0,0 @@
+-/* s_floorf.c -- float version of s_floor.c.
+- * Conversion to float by Ian Lance Taylor, Cygnus Support, ian@cygnus.com.
+- */
+-
+-/*
+- * ====================================================
+- * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+- *
+- * Developed at SunPro, a Sun Microsystems, Inc. business.
+- * Permission to use, copy, modify, and distribute this
+- * software is freely granted, provided that this notice
+- * is preserved.
+- * ====================================================
+- */
+-
+-#if defined(LIBM_SCCS) && !defined(lint)
+-static char rcsid[] = "$NetBSD: s_floorf.c,v 1.4 1995/05/10 20:47:22 jtc Exp $";
+-#endif
+-
+-/*
+- * floorf(x)
+- * Return x rounded toward -inf to integral value
+- * Method:
+- *	Bit twiddling.
+- * Exception:
+- *	Inexact flag raised if x not equal to floorf(x).
+- */
+-
+-#include "math.h"
+-#include "math_private.h"
+-
+-#ifdef __STDC__
+-static const float huge = 1.0e30;
+-#else
+-static float huge = 1.0e30;
+-#endif
+-
+-#ifdef __STDC__
+-	float __floorf(float x)
+-#else
+-	float __floorf(x)
+-	float x;
+-#endif
+-{
+-	int32_t i0,j0;
+-	u_int32_t i;
+-	GET_FLOAT_WORD(i0,x);
+-	j0 = ((i0>>23)&0xff)-0x7f;
+-	if(j0<23) {
+-	    if(j0<0) { 	/* raise inexact if x != 0 */
+-		if(huge+x>(float)0.0) {/* return 0*sign(x) if |x|<1 */
+-		    if(i0>=0) {i0=0;}
+-		    else if((i0&0x7fffffff)!=0)
+-			{ i0=0xbf800000;}
+-		}
+-	    } else {
+-		i = (0x007fffff)>>j0;
+-		if((i0&i)==0) return x; /* x is integral */
+-		if(huge+x>(float)0.0) {	/* raise inexact flag */
+-		    if(i0<0) i0 += (0x00800000)>>j0;
+-		    i0 &= (~i);
+-		}
+-	    }
+-	} else {
+-	    if(j0==0x80) return x+x;	/* inf or NaN */
+-	    else return x;		/* x is integral */
+-	}
+-	SET_FLOAT_WORD(x,i0);
+-	return x;
+-}
+-weak_alias (__floorf, floorf)
+--- uClibc-0.9.27/libm/powerpc/s_modf.c.mps	2005-06-10 10:59:47 +0200
++++ uClibc-0.9.27/libm/powerpc/s_modf.c	2005-06-10 11:17:20 +0200
+@@ -4,9 +4,8 @@
+ **      Contains: C source code for implementations of floating-point
+ **                functions which round to integral value or format, as
+ **                defined in header <fp.h>.  In particular, this file
+-**                contains implementations of functions rint, nearbyint,
+-**                rinttol, round, roundtol, trunc, modf and modfl.  This file
+-**                targets PowerPC or Power platforms.
++**                contains implementations of functions rinttol, roundtol,
++**                modf and modfl.  This file targets PowrPC or Power platforms.
+ **
+ **      Written by: A. Sazegari, Apple AltiVec Group
+ **	    Created originally by Jon Okada, Apple Numerics Group
+@@ -66,44 +65,11 @@
+ static const unsigned long int signMask = 0x80000000ul;
+ static const double twoTo52      = 4503599627370496.0;
+ static const double doubleToLong = 4503603922337792.0;	            // 2^52
+-static const DblInHex Huge       = {{ 0x7FF00000, 0x00000000 }};
+ static const DblInHex TOWARDZERO = {{ 0x00000000, 0x00000001 }};
+ 
+ 
+ /*******************************************************************************
+ *                                                                              *
+-*     The function nearbyint rounds its double argument to integral value      *
+-*     according to the current rounding direction and returns the result in    *
+-*     double format.  This function does not signal inexact.                   *
+-*                                                                              *
+-********************************************************************************
+-*                                                                              *
+-*     This function calls fabs and copysign.		                         *
+-*                                                                              *
+-*******************************************************************************/
+-
+-double nearbyint ( double x )
+-      {
+-	double y;
+-	double OldEnvironment;
+-
+-	y = twoTo52;
+-
+-	asm ("mffs %0" : "=f" (OldEnvironment));	/* get the environement */
+-
+-      if ( fabs ( x ) >= y )                          /* huge case is exact */
+-            return x;
+-      if ( x < 0 ) y = -y;                                   /* negative case */
+-      y = ( x + y ) - y;                                    /* force rounding */
+-      if ( y == 0.0 )                        /* zero results mirror sign of x */
+-            y = copysign ( y, x );
+-//	restore old flags
+-	asm ("mtfsf 255,%0" : /*NULLOUT*/ : /*IN*/ "f" ( OldEnvironment ));
+-      return ( y );
+-	}
+-
+-/*******************************************************************************
+-*                                                                              *
+ *     The function rinttol converts its double argument to integral value      *
+ *     according to the current rounding direction and returns the result in    *
+ *     long int format.  This conversion signals invalid if the argument is a   *
+@@ -197,99 +163,6 @@
+ 
+ /*******************************************************************************
+ *                                                                              *
+-*     The function round rounds its double argument to integral value          *
+-*     according to the "add half to the magnitude and truncate" rounding of    *
+-*     Pascal's Round function and FORTRAN's ANINT function and returns the     *
+-*     result in double format.  This function signals inexact if an ordered    *
+-*     return value is not equal to the operand.                                *
+-*                                                                              *
+-*******************************************************************************/
+-
+-double round ( double x )
+-      {
+-      DblInHex argument, OldEnvironment;
+-      register double y, z;
+-      register unsigned long int xHead;
+-      register long int target;
+-
+-      argument.dbl = x;
+-      xHead = argument.words.hi & 0x7fffffffUL;      // xHead <- high half of |x|
+-      target = ( argument.words.hi < signMask );     // flag positive sign
+-
+-      if ( xHead < 0x43300000ul )
+-/*******************************************************************************
+-*     Is |x| < 2.0^52?                                                        *
+-*******************************************************************************/
+-            {
+-            if ( xHead < 0x3ff00000ul )
+-/*******************************************************************************
+-*     Is |x| < 1.0?                                                           *
+-*******************************************************************************/
+-                  {
+-			asm ("mffs %0" : "=f" (OldEnvironment.dbl));	// get environment
+-                  if ( xHead < 0x3fe00000ul )
+-/*******************************************************************************
+-*     Is |x| < 0.5?                                                           *
+-*******************************************************************************/
+-                        {
+-                        if ( ( xHead | argument.words.lo ) != 0ul )
+-                              OldEnvironment.words.lo |= 0x02000000ul;
+-				asm ("mtfsf 255,%0" : /*NULLOUT*/ : /*IN*/ "f" ( OldEnvironment.dbl ));
+-                        if ( target )
+-                              return ( 0.0 );
+-                        else
+-                              return ( -0.0 );
+-                        }
+-/*******************************************************************************
+-*     Is 0.5 ² |x| < 1.0?                                                      *
+-*******************************************************************************/
+-                  OldEnvironment.words.lo |= 0x02000000ul;
+-			asm ("mtfsf 255,%0" : /*NULLOUT*/ : /*IN*/ "f" ( OldEnvironment.dbl ));
+-                  if ( target )
+-                        return ( 1.0 );
+-                  else
+-                        return ( -1.0 );
+-                  }
+-/*******************************************************************************
+-*     Is 1.0 < |x| < 2.0^52?                                                   *
+-*******************************************************************************/
+-            if ( target )
+-                  {                                     // positive x
+-                  y = ( x + twoTo52 ) - twoTo52;        // round at binary point
+-                  if ( y == x )                         // exact case
+-                        return ( x );
+-                  z = x + 0.5;                          // inexact case
+-                  y = ( z + twoTo52 ) - twoTo52;        // round at binary point
+-                  if ( y > z )
+-                        return ( y - 1.0 );
+-                  else
+-                        return ( y );
+-                  }
+-
+-/*******************************************************************************
+-*     Is x < 0?                                                                *
+-*******************************************************************************/
+-            else
+-                  {
+-                  y = ( x - twoTo52 ) + twoTo52;        // round at binary point
+-                  if ( y == x )
+-                        return ( x );
+-                  z = x - 0.5;
+-                  y = ( z - twoTo52 ) + twoTo52;        // round at binary point
+-                  if ( y < z )
+-                        return ( y + 1.0 );
+-                  else
+-                  return ( y );
+-                  }
+-            }
+-/*******************************************************************************
+-*      |x| >= 2.0^52 or x is a NaN.                                            *
+-*******************************************************************************/
+-      return ( x );
+-      }
+-
+-/*******************************************************************************
+-*                                                                              *
+ *     The function roundtol converts its double argument to integral format    *
+ *     according to the "add half to the magnitude and chop" rounding mode of   *
+ *     Pascal's Round function and FORTRAN's NINT function.  This conversion    *
+@@ -392,73 +265,6 @@
+ 	}
+ 
+ /*******************************************************************************
+-*                                                                              *
+-*     The function trunc truncates its double argument to integral value       *
+-*     and returns the result in double format.  This function signals          *
+-*     inexact if an ordered return value is not equal to the operand.          *
+-*                                                                              *
+-*******************************************************************************/
+-
+-double trunc ( double x )
+-      {
+-	DblInHex argument,OldEnvironment;
+-	register double y;
+-	register unsigned long int xhi;
+-	register long int target;
+-
+-	argument.dbl = x;
+-	xhi = argument.words.hi & 0x7fffffffUL;	      	// xhi <- high half of |x|
+-	target = ( argument.words.hi < signMask );	      	// flag positive sign
+-
+-	if ( xhi < 0x43300000ul )
+-/*******************************************************************************
+-*     Is |x| < 2.0^53?                                                         *
+-*******************************************************************************/
+-		{
+-		if ( xhi < 0x3ff00000ul )
+-/*******************************************************************************
+-*     Is |x| < 1.0?                                                            *
+-*******************************************************************************/
+-			{
+-			if ( ( xhi | argument.words.lo ) != 0ul )
+-				{                             	// raise deserved INEXACT
+-				asm ("mffs %0" : "=f" (OldEnvironment.dbl));
+-				OldEnvironment.words.lo |= 0x02000000ul;
+-				asm ("mtfsf 255,%0" : /*NULLOUT*/ : /*IN*/ "f" ( OldEnvironment.dbl ));
+-				}
+-			if ( target )	                  	// return properly signed zero
+-				return ( 0.0 );
+-			else
+-				return ( -0.0 );
+-			}
+-/*******************************************************************************
+-*     Is 1.0 < |x| < 2.0^52?                                                   *
+-*******************************************************************************/
+-		if ( target )
+-			{
+-			y = ( x + twoTo52 ) - twoTo52;      	// round at binary point
+-			if ( y > x )
+-				return ( y - 1.0 );
+-			else
+-				return ( y );
+-			}
+-
+-		else
+-			{
+-			y = ( x - twoTo52 ) + twoTo52;      	// round at binary point.
+-			if ( y < x )
+-				return ( y + 1.0 );
+-			else
+-				return ( y );
+-			}
+-		}
+-/*******************************************************************************
+-*      Is |x| >= 2.0^52 or x is a NaN.                                         *
+-*******************************************************************************/
+-	return ( x );
+-	}
+-
+-/*******************************************************************************
+ *     The modf family of functions separate a floating-point number into its   *
+ *     fractional and integral parts, returning the fractional part and writing *
+ *     the integral part in floating-point format to the object pointed to by a *
+--- uClibc-0.9.27/libm/powerpc/s_nearbyint.c.mps	2005-06-10 11:00:19 +0200
++++ uClibc-0.9.27/libm/powerpc/s_nearbyint.c	2005-06-10 11:28:06 +0200
+@@ -0,0 +1,36 @@
++#include <limits.h>
++#include <math.h>
++
++/*******************************************************************************
++*                                                                              *
++*     The function nearbyint rounds its double argument to integral value      *
++*     according to the current rounding direction and returns the result in    *
++*     double format.  This function does not signal inexact.                   *
++*                                                                              *
++********************************************************************************
++*                                                                              *
++*     This function calls fabs and copysign.		                         *
++*                                                                              *
++*******************************************************************************/
++
++static const double twoTo52      = 4503599627370496.0;
++
++double nearbyint ( double x )
++      {
++	double y;
++	double OldEnvironment;
++
++	y = twoTo52;
++
++	asm ("mffs %0" : "=f" (OldEnvironment));	/* get the environement */
++
++      if ( fabs ( x ) >= y )                          /* huge case is exact */
++            return x;
++      if ( x < 0 ) y = -y;                                   /* negative case */
++      y = ( x + y ) - y;                                    /* force rounding */
++      if ( y == 0.0 )                        /* zero results mirror sign of x */
++            y = copysign ( y, x );
++//	restore old flags
++	asm ("mtfsf 255,%0" : /*NULLOUT*/ : /*IN*/ "f" ( OldEnvironment ));
++      return ( y );
++	}
+--- uClibc-0.9.27/libm/powerpc/s_round.c.mps	2005-06-10 11:00:41 +0200
++++ uClibc-0.9.27/libm/powerpc/s_round.c	2005-06-10 11:07:43 +0200
+@@ -0,0 +1,112 @@
++#include <limits.h>
++#include <math.h>
++
++typedef union
++      {
++      struct {
++#if defined(__BIG_ENDIAN__)
++        unsigned long int hi;
++        unsigned long int lo;
++#else
++        unsigned long int lo;
++        unsigned long int hi;
++#endif
++      } words;
++      double dbl;
++      } DblInHex;
++
++static const unsigned long int signMask = 0x80000000ul;
++static const double twoTo52      = 4503599627370496.0;
++
++/*******************************************************************************
++*                                                                              *
++*     The function round rounds its double argument to integral value          *
++*     according to the "add half to the magnitude and truncate" rounding of    *
++*     Pascal's Round function and FORTRAN's ANINT function and returns the     *
++*     result in double format.  This function signals inexact if an ordered    *
++*     return value is not equal to the operand.                                *
++*                                                                              *
++*******************************************************************************/
++
++double round ( double x )
++      {
++      DblInHex argument, OldEnvironment;
++      register double y, z;
++      register unsigned long int xHead;
++      register long int target;
++
++      argument.dbl = x;
++      xHead = argument.words.hi & 0x7fffffffUL;      // xHead <- high half of |x|
++      target = ( argument.words.hi < signMask );     // flag positive sign
++
++      if ( xHead < 0x43300000ul )
++/*******************************************************************************
++*     Is |x| < 2.0^52?                                                        *
++*******************************************************************************/
++            {
++            if ( xHead < 0x3ff00000ul )
++/*******************************************************************************
++*     Is |x| < 1.0?                                                           *
++*******************************************************************************/
++                  {
++			asm ("mffs %0" : "=f" (OldEnvironment.dbl));	// get environment
++                  if ( xHead < 0x3fe00000ul )
++/*******************************************************************************
++*     Is |x| < 0.5?                                                           *
++*******************************************************************************/
++                        {
++                        if ( ( xHead | argument.words.lo ) != 0ul )
++                              OldEnvironment.words.lo |= 0x02000000ul;
++				asm ("mtfsf 255,%0" : /*NULLOUT*/ : /*IN*/ "f" ( OldEnvironment.dbl ));
++                        if ( target )
++                              return ( 0.0 );
++                        else
++                              return ( -0.0 );
++                        }
++/*******************************************************************************
++*     Is 0.5 ² |x| < 1.0?                                                      *
++*******************************************************************************/
++                  OldEnvironment.words.lo |= 0x02000000ul;
++			asm ("mtfsf 255,%0" : /*NULLOUT*/ : /*IN*/ "f" ( OldEnvironment.dbl ));
++                  if ( target )
++                        return ( 1.0 );
++                  else
++                        return ( -1.0 );
++                  }
++/*******************************************************************************
++*     Is 1.0 < |x| < 2.0^52?                                                   *
++*******************************************************************************/
++            if ( target )
++                  {                                     // positive x
++                  y = ( x + twoTo52 ) - twoTo52;        // round at binary point
++                  if ( y == x )                         // exact case
++                        return ( x );
++                  z = x + 0.5;                          // inexact case
++                  y = ( z + twoTo52 ) - twoTo52;        // round at binary point
++                  if ( y > z )
++                        return ( y - 1.0 );
++                  else
++                        return ( y );
++                  }
++
++/*******************************************************************************
++*     Is x < 0?                                                                *
++*******************************************************************************/
++            else
++                  {
++                  y = ( x - twoTo52 ) + twoTo52;        // round at binary point
++                  if ( y == x )
++                        return ( x );
++                  z = x - 0.5;
++                  y = ( z - twoTo52 ) + twoTo52;        // round at binary point
++                  if ( y < z )
++                        return ( y + 1.0 );
++                  else
++                  return ( y );
++                  }
++            }
++/*******************************************************************************
++*      |x| >= 2.0^52 or x is a NaN.                                            *
++*******************************************************************************/
++      return ( x );
++      }
+--- uClibc-0.9.27/libm/powerpc/s_trunc.c.mps	2005-06-10 11:01:10 +0200
++++ uClibc-0.9.27/libm/powerpc/s_trunc.c	2005-06-10 11:11:42 +0200
+@@ -0,0 +1,86 @@
++#include <limits.h>
++#include <math.h>
++
++typedef union
++      {
++      struct {
++#if defined(__BIG_ENDIAN__)
++        unsigned long int hi;
++        unsigned long int lo;
++#else
++        unsigned long int lo;
++        unsigned long int hi;
++#endif
++      } words;
++      double dbl;
++      } DblInHex;
++
++static const unsigned long int signMask = 0x80000000ul;
++static const double twoTo52      = 4503599627370496.0;
++
++/*******************************************************************************
++*                                                                              *
++*     The function trunc truncates its double argument to integral value       *
++*     and returns the result in double format.  This function signals          *
++*     inexact if an ordered return value is not equal to the operand.          *
++*                                                                              *
++*******************************************************************************/
++
++double trunc ( double x )
++      {
++	DblInHex argument,OldEnvironment;
++	register double y;
++	register unsigned long int xhi;
++	register long int target;
++
++	argument.dbl = x;
++	xhi = argument.words.hi & 0x7fffffffUL;	      	// xhi <- high half of |x|
++	target = ( argument.words.hi < signMask );	      	// flag positive sign
++
++	if ( xhi < 0x43300000ul )
++/*******************************************************************************
++*     Is |x| < 2.0^53?                                                         *
++*******************************************************************************/
++		{
++		if ( xhi < 0x3ff00000ul )
++/*******************************************************************************
++*     Is |x| < 1.0?                                                            *
++*******************************************************************************/
++			{
++			if ( ( xhi | argument.words.lo ) != 0ul )
++				{                             	// raise deserved INEXACT
++				asm ("mffs %0" : "=f" (OldEnvironment.dbl));
++				OldEnvironment.words.lo |= 0x02000000ul;
++				asm ("mtfsf 255,%0" : /*NULLOUT*/ : /*IN*/ "f" ( OldEnvironment.dbl ));
++				}
++			if ( target )	                  	// return properly signed zero
++				return ( 0.0 );
++			else
++				return ( -0.0 );
++			}
++/*******************************************************************************
++*     Is 1.0 < |x| < 2.0^52?                                                   *
++*******************************************************************************/
++		if ( target )
++			{
++			y = ( x + twoTo52 ) - twoTo52;      	// round at binary point
++			if ( y > x )
++				return ( y - 1.0 );
++			else
++				return ( y );
++			}
++
++		else
++			{
++			y = ( x - twoTo52 ) + twoTo52;      	// round at binary point.
++			if ( y < x )
++				return ( y + 1.0 );
++			else
++				return ( y );
++			}
++		}
++/*******************************************************************************
++*      Is |x| >= 2.0^52 or x is a NaN.                                         *
++*******************************************************************************/
++	return ( x );
++	}

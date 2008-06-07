@@ -1,0 +1,44 @@
+--- libc/sysdeps/linux/arm/ioperm.c.orig	2008-06-07 14:57:05.000000000 -0700
++++ libc/sysdeps/linux/arm/ioperm.c	2008-06-07 14:57:31.000000000 -0700
+@@ -44,7 +44,7 @@
+ #include <sys/types.h>
+ #include <sys/mman.h>
+ 
+-#include <asm/page.h>
++#include <sys/io.h>
+ #include <sys/sysctl.h>
+ 
+ #include <linux/version.h>
+@@ -216,28 +216,27 @@
+ }
+ 
+ 
+-void
+-outl(unsigned int b, unsigned long int port)
++int outl(unsigned long b, unsigned long int port)
+ {
+     *((volatile unsigned long *)(IO_ADDR (port))) = b;
+ }
+ 
+ 
+-unsigned int
++unsigned char
+ inb (unsigned long int port)
+ {
+     return *((volatile unsigned char *)(IO_ADDR (port)));
+ }
+ 
+ 
+-unsigned int
++unsigned short int
+ inw(unsigned long int port)
+ {
+     return *((volatile unsigned short *)(IO_ADDR (port)));
+ }
+ 
+ 
+-unsigned int
++unsigned long int
+ inl(unsigned long int port)
+ {
+     return *((volatile unsigned long *)(IO_ADDR (port)));

@@ -1,0 +1,11 @@
+--- libc/sysdeps/linux/arm/sys/io.h	2008-06-07 14:51:05.000000000 -0700
++++ libc/sysdeps/linux/arm/sys/io.h	2008-06-07 14:52:23.000000000 -0700
+@@ -41,7 +41,7 @@
+ 
+ extern void outb (unsigned char value, unsigned long int port) __THROW;
+ extern void outw (unsigned short value, unsigned long int port) __THROW;
+-extern void outl (unsigned long value, unsigned long int port) __THROW;
++extern int outl (unsigned long value, unsigned long int port) __THROW;
+ 
+ __END_DECLS
+ 

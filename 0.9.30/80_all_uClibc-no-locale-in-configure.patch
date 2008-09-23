@@ -1,0 +1,41 @@
+--- uClibc-0.9.29/extra/locale/Makefile.in~	2006-08-24 05:55:55.000000000 +0200
++++ uClibc-0.9.29/extra/locale/Makefile.in	2008-09-12 15:37:28.000000000 +0200
+@@ -18,6 +18,8 @@
+ 
+ BUILD_CFLAGS-gen_wctype := $(BUILD_CFLAGS-locale-common)
+ 
++BUILD_CFLAGS-gen_locale := -D_GNU_SOURCE
++
+ BUILD_CFLAGS-gen_ldc :=
+ ifeq ($(UCLIBC_HAS_WCHAR),y)
+ BUILD_CFLAGS-gen_wc8bit += -DDO_WIDE_CHAR=1
+--- uClibc-0.9.29/extra/locale/gen_locale.c~	2006-01-22 20:35:08.000000000 +0100
++++ uClibc-0.9.29/extra/locale/gen_locale.c	2008-09-12 15:49:40.000000000 +0200
+@@ -9,7 +9,7 @@
+ #include <nl_types.h>
+ #include <stdint.h>
+ 
+-#include "c8tables.h"
++#include "../../c8tables.h"
+ 
+ 
+ #define __LOCALE_DATA_CATEGORIES 6
+--- uClibc-0.9.29/extra/config/lkc.h~	2007-02-14 09:21:06.000000000 +0100
++++ uClibc-0.9.29/extra/config/lkc.h	2008-09-12 16:31:27.000000000 +0200
+@@ -9,12 +9,11 @@
+ #include "expr.h"
+ 
+ #ifndef KBUILD_NO_NLS
+-# include <libintl.h>
+-#else
+-# define gettext(Msgid) ((const char *) (Msgid))
+-# define textdomain(Domainname) ((const char *) (Domainname))
+-# define bindtextdomain(Domainname, Dirname) ((const char *) (Dirname))
++#define KBUILD_NO_NLS
+ #endif
++#define gettext(Msgid) ((const char *) (Msgid))
++#define textdomain(Domainname) ((const char *) (Domainname))
++#define bindtextdomain(Domainname, Dirname) ((const char *) (Dirname))
+ 
+ #ifdef __cplusplus
+ extern "C" {

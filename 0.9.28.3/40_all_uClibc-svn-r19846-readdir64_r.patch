@@ -1,0 +1,11 @@
+--- uClibc-0.9.28.3.orig/libc/misc/dirent/readdir64_r.c	2008-08-29 11:51:01 +0000
++++ uClibc-0.9.28.3/libc/misc/dirent/readdir64_r.c	2008-08-29 11:52:02 +0000
+@@ -39,7 +39,7 @@
+ 			bytes = __getdents64(dir->dd_fd, dir->dd_buf, dir->dd_max);
+ 			if (bytes <= 0) {
+ 				*result = NULL;
+-				ret = errno;
++				ret = (bytes==0)? 0 : errno; 
+ 				goto all_done;
+ 			}
+ 			dir->dd_size = bytes;

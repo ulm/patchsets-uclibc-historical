@@ -1,0 +1,118 @@
+From f32fca94f05812dfb4ee3a399b78f89421a75403 Mon Sep 17 00:00:00 2001
+From: Mike Frysinger <vapier@gentoo.org>
+Date: Wed, 28 Feb 2007 22:25:41 +0000
+Subject: [PATCH] add support for ppoll()
+
+---
+ include/sys/poll.h                |   28 +++++++++++++++++++--
+ libc/sysdeps/linux/common/ppoll.c |   47 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 72 insertions(+), 3 deletions(-)
+ create mode 100644 libc/sysdeps/linux/common/ppoll.c
+
+diff --git a/include/sys/poll.h b/include/sys/poll.h
+index bf1c9e2..4085b78 100644
+--- a/include/sys/poll.h
++++ b/include/sys/poll.h
+@@ -1,5 +1,5 @@
+ /* Compatibility definitions for System V `poll' interface.
+-   Copyright (C) 1994,96,97,98,99,2000,2001 Free Software Foundation, Inc.
++   Copyright (C) 1994,1996-2001,2004,2005,2006 Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+    The GNU C Library is free software; you can redistribute it and/or
+@@ -24,6 +24,13 @@
+ 
+ /* Get the platform dependent bits of `poll'.  */
+ #include <bits/poll.h>
++#ifdef __USE_GNU
++/* Get the __sigset_t definition.  */
++# include <bits/sigset.h>
++/* Get the timespec definition.  */
++# define __need_timespec
++# include <time.h>
++#endif
+ 
+ 
+ /* Type used for the number of file descriptors.  */
+@@ -44,8 +51,23 @@ __BEGIN_DECLS
+    FDS.  If TIMEOUT is nonzero and not -1, allow TIMEOUT milliseconds for
+    an event to occur; if TIMEOUT is -1, block until an event occurs.
+    Returns the number of file descriptors with events, zero if timed out,
+-   or -1 for errors.  */
+-extern int poll (struct pollfd *__fds, nfds_t __nfds, int __timeout) __THROW;
++   or -1 for errors.
++
++   This function is a cancellation point and therefore not marked with
++   __THROW.  */
++extern int poll (struct pollfd *__fds, nfds_t __nfds, int __timeout);
++
++#ifdef __USE_GNU
++/* Like poll, but before waiting the threads signal mask is replaced
++   with that specified in the fourth parameter.  For better usability,
++   the timeout value is specified using a TIMESPEC object.
++
++   This function is a cancellation point and therefore not marked with
++   __THROW.  */
++extern int ppoll (struct pollfd *__fds, nfds_t __nfds,
++		  __const struct timespec *__timeout,
++		  __const __sigset_t *__ss);
++#endif
+ 
+ __END_DECLS
+ 
+diff --git a/libc/sysdeps/linux/common/ppoll.c b/libc/sysdeps/linux/common/ppoll.c
+new file mode 100644
+index 0000000..e908ea8
+--- /dev/null
++++ b/libc/sysdeps/linux/common/ppoll.c
+@@ -0,0 +1,47 @@
++/* Copyright (C) 2006 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++   Contributed by Ulrich Drepper <drepper@redhat.com>, 2006.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, write to the Free
++   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
++   02111-1307 USA.  */
++
++#include <sys/syscall.h>
++#include <sys/poll.h>
++
++#ifdef __NR_ppoll
++
++# define __NR___libc_ppoll __NR_ppoll
++static inline
++_syscall4(int, __libc_ppoll, struct pollfd *, fds,
++	nfds_t, nfds, const struct timespec *, timeout,
++	const sigset_t *, sigmask);
++
++int
++ppoll (struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
++       const sigset_t *sigmask)
++{
++  /* The Linux kernel can in some situations update the timeout value.
++     We do not want that so use a local variable.  */
++  struct timespec tval;
++  if (timeout != NULL)
++    {
++      tval = *timeout;
++      timeout = &tval;
++    }
++
++  return __libc_ppoll(fds, nfds, timeout, sigmask);
++}
++
++#endif
+-- 
+1.6.4
+

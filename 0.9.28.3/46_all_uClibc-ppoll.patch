@@ -1,0 +1,30 @@
+From 3aa48f81c3f47e4db713e0ad133b56b70af6e2be Mon Sep 17 00:00:00 2001
+From: Khem Raj <kraj@mvista.com>
+Date: Thu, 1 Mar 2007 21:59:59 +0000
+Subject: [PATCH 3/4] Should be __sigset_t instead of sigset_t.
+
+---
+ libc/sysdeps/linux/common/ppoll.c |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libc/sysdeps/linux/common/ppoll.c b/libc/sysdeps/linux/common/ppoll.c
+index e908ea8..3c4d341 100644
+--- a/libc/sysdeps/linux/common/ppoll.c
++++ b/libc/sysdeps/linux/common/ppoll.c
+@@ -26,11 +26,11 @@
+ static inline
+ _syscall4(int, __libc_ppoll, struct pollfd *, fds,
+ 	nfds_t, nfds, const struct timespec *, timeout,
+-	const sigset_t *, sigmask);
++	const __sigset_t *, sigmask);
+ 
+ int
+ ppoll (struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
+-       const sigset_t *sigmask)
++       const __sigset_t *sigmask)
+ {
+   /* The Linux kernel can in some situations update the timeout value.
+      We do not want that so use a local variable.  */
+-- 
+1.6.4
+

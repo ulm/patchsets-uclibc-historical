@@ -1,0 +1,63 @@
+From 05caf5ca49717add04ec1251f504a0b2a635ea32 Mon Sep 17 00:00:00 2001
+From: Denis Vlasenko <vda.linux@googlemail.com>
+Date: Wed, 28 Jan 2009 23:42:01 +0000
+Subject: [PATCH 4/4] fix ppoll. we forgot to pass 5th parameter to the syscall
+
+---
+ libc/sysdeps/linux/common/ppoll.c |   28 +++++++++++++++-------------
+ 1 files changed, 15 insertions(+), 13 deletions(-)
+
+diff --git a/libc/sysdeps/linux/common/ppoll.c b/libc/sysdeps/linux/common/ppoll.c
+index 3c4d341..9357d03 100644
+--- a/libc/sysdeps/linux/common/ppoll.c
++++ b/libc/sysdeps/linux/common/ppoll.c
+@@ -17,6 +17,8 @@
+    Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+    02111-1307 USA.  */
+ 
++#include <signal.h>
++#include <stdlib.h>
+ #include <sys/syscall.h>
+ #include <sys/poll.h>
+ 
+@@ -24,24 +26,24 @@
+ 
+ # define __NR___libc_ppoll __NR_ppoll
+ static inline
+-_syscall4(int, __libc_ppoll, struct pollfd *, fds,
++_syscall5(int, __libc_ppoll, struct pollfd *, fds,
+ 	nfds_t, nfds, const struct timespec *, timeout,
+-	const __sigset_t *, sigmask);
++	const __sigset_t *, sigmask,
++	size_t, sigsetsize)
+ 
+ int
+-ppoll (struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
++ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
+        const __sigset_t *sigmask)
+ {
+-  /* The Linux kernel can in some situations update the timeout value.
+-     We do not want that so use a local variable.  */
+-  struct timespec tval;
+-  if (timeout != NULL)
+-    {
+-      tval = *timeout;
+-      timeout = &tval;
+-    }
+-
+-  return __libc_ppoll(fds, nfds, timeout, sigmask);
++	/* The Linux kernel can in some situations update the timeout value.
++	   We do not want that so use a local variable.  */
++	struct timespec tval;
++	if (timeout != NULL) {
++		tval = *timeout;
++		timeout = &tval;
++	}
++
++	return __libc_ppoll(fds, nfds, timeout, sigmask, _NSIG / 8);
+ }
+ 
+ #endif
+-- 
+1.6.4
+

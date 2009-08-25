@@ -1,0 +1,332 @@
+From 4c49fbb6b5aeae1767d68e2cc62e2734c87ab766 Mon Sep 17 00:00:00 2001
+From: Mike Frysinger <vapier@gentoo.org>
+Date: Fri, 11 Jan 2008 09:14:21 +0000
+Subject: [PATCH 1/1] cull useless headers and import a few updates from glibc
+
+---
+ include/netinet/in.h     |   62 +++++++++++++++++++++++++++++++++------
+ include/netinet/ip_fw.h  |    1 -
+ include/netinet/ip_tcp.h |   72 ----------------------------------------------
+ include/netinet/ip_udp.h |    1 -
+ include/netinet/tcp.h    |   21 +++++++++++++
+ include/netinet/udp.h    |   60 ++++++++++++++++++++++++++-----------
+ 6 files changed, 115 insertions(+), 102 deletions(-)
+ delete mode 100644 include/netinet/ip_fw.h
+ delete mode 100644 include/netinet/ip_tcp.h
+ delete mode 100644 include/netinet/ip_udp.h
+
+diff --git a/include/netinet/in.h b/include/netinet/in.h
+index 935886e..018b39b 100644
+--- a/include/netinet/in.h
++++ b/include/netinet/in.h
+@@ -1,4 +1,5 @@
+-/* Copyright (C) 1991-2001, 2003, 2004 Free Software Foundation, Inc.
++/* Copyright (C) 1991-2001, 2003, 2004, 2006, 2007
++   Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+    The GNU C Library is free software; you can redistribute it and/or
+@@ -455,25 +456,66 @@ extern int bindresvport6 (int __sockfd, struct sockaddr_in6 *__sock_in)
+ /* IPv6 packet information.  */
+ struct in6_pktinfo
+   {
+-    struct in6_addr	ipi6_addr;    /* src/dst IPv6 address */
+-    unsigned int	ipi6_ifindex; /* send/recv interface index */
++    struct in6_addr ipi6_addr;	/* src/dst IPv6 address */
++    unsigned int ipi6_ifindex;	/* send/recv interface index */
++  };
++
++/* IPv6 MTU information.  */
++struct ip6_mtuinfo
++  {
++    struct sockaddr_in6 ip6m_addr; /* dst address including zone ID */
++    uint32_t ip6m_mtu;		   /* path MTU in host byte order */
+   };
+ 
+ 
+ #if 0 /*def __USE_GNU*/
+-/* Hop-by-Hop and Destination Options Processing.  */
+-extern int inet6_option_space (int __nbytes) __THROW;
++/* Obsolete hop-by-hop and Destination Options Processing (RFC 2292).  */
++extern int inet6_option_space (int __nbytes)
++     __THROW __attribute_deprecated__;
+ extern int inet6_option_init (void *__bp, struct cmsghdr **__cmsgp,
+-			      int __type) __THROW;
++			      int __type) __THROW __attribute_deprecated__;
+ extern int inet6_option_append (struct cmsghdr *__cmsg,
+ 				__const uint8_t *__typep, int __multx,
+-				int __plusy) __THROW;
++				int __plusy) __THROW __attribute_deprecated__;
+ extern uint8_t *inet6_option_alloc (struct cmsghdr *__cmsg, int __datalen,
+-				    int __multx, int __plusy) __THROW;
++				    int __multx, int __plusy)
++     __THROW __attribute_deprecated__;
+ extern int inet6_option_next (__const struct cmsghdr *__cmsg,
+-			      uint8_t **__tptrp) __THROW;
++			      uint8_t **__tptrp)
++     __THROW __attribute_deprecated__;
+ extern int inet6_option_find (__const struct cmsghdr *__cmsg,
+-			      uint8_t **__tptrp, int __type) __THROW;
++			      uint8_t **__tptrp, int __type)
++     __THROW __attribute_deprecated__;
++
++
++/* Hop-by-Hop and Destination Options Processing (RFC 3542).  */
++extern int inet6_opt_init (void *__extbuf, socklen_t __extlen) __THROW;
++extern int inet6_opt_append (void *__extbuf, socklen_t __extlen, int __offset,
++			     uint8_t __type, socklen_t __len, uint8_t __align,
++			     void **__databufp) __THROW;
++extern int inet6_opt_finish (void *__extbuf, socklen_t __extlen, int __offset)
++     __THROW;
++extern int inet6_opt_set_val (void *__databuf, int __offset, void *__val,
++			      socklen_t __vallen) __THROW;
++extern int inet6_opt_next (void *__extbuf, socklen_t __extlen, int __offset,
++			   uint8_t *__typep, socklen_t *__lenp,
++			   void **__databufp) __THROW;
++extern int inet6_opt_find (void *__extbuf, socklen_t __extlen, int __offset,
++			   uint8_t __type, socklen_t *__lenp,
++			   void **__databufp) __THROW;
++extern int inet6_opt_get_val (void *__databuf, int __offset, void *__val,
++			      socklen_t __vallen) __THROW;
++
++
++/* Routing Header Option (RFC 3542).  */
++extern socklen_t inet6_rth_space (int __type, int __segments) __THROW;
++extern void *inet6_rth_init (void *__bp, socklen_t __bp_len, int __type,
++			     int __segments) __THROW;
++extern int inet6_rth_add (void *__bp, __const struct in6_addr *__addr) __THROW;
++extern int inet6_rth_reverse (__const void *__in, void *__out) __THROW;
++extern int inet6_rth_segments (__const void *__bp) __THROW;
++extern struct in6_addr *inet6_rth_getaddr (__const void *__bp, int __index)
++     __THROW;
+ 
+ 
+ /* Multicast source filter support.  */
+diff --git a/include/netinet/ip_fw.h b/include/netinet/ip_fw.h
+deleted file mode 100644
+index 278a039..0000000
+--- a/include/netinet/ip_fw.h
++++ /dev/null
+@@ -1 +0,0 @@
+-#include <linux/ip_fw.h>
+diff --git a/include/netinet/ip_tcp.h b/include/netinet/ip_tcp.h
+deleted file mode 100644
+index 600aebc..0000000
+--- a/include/netinet/ip_tcp.h
++++ /dev/null
+@@ -1,72 +0,0 @@
+-/*
+- * Copyright (c) 1982, 1986 Regents of the University of California.
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms are permitted
+- * provided that the above copyright notice and this paragraph are
+- * duplicated in all such forms and that any documentation,
+- * advertising materials, and other materials related to such
+- * distribution and use acknowledge that the software was developed
+- * by the University of California, Berkeley.  The name of the
+- * University may not be used to endorse or promote products derived
+- * from this software without specific prior written permission.
+- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+- * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+- * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+- *
+- *	@(#)tcp.h	7.5 (Berkeley) 6/29/88
+- */
+-
+-#ifndef _NETINET_IP_TCP_H
+-#define _NETINET_IP_TCP_H
+-
+-#include <endian.h>
+-#include <linux/socket.h>
+-#include <sys/types.h>
+-
+-typedef	u_int32_t	tcp_seq;
+-/*
+- * TCP header.
+- * Per RFC 793, September, 1981.
+- */
+-struct tcphdr {
+-	u_short	th_sport;		/* source port */
+-	u_short	th_dport;		/* destination port */
+-	tcp_seq	th_seq;			/* sequence number */
+-	tcp_seq	th_ack;			/* acknowledgement number */
+-#if __BYTE_ORDER == __LITTLE_ENDIAN 
+-	u_char	th_x2:4,		/* (unused) */
+-		th_off:4;		/* data offset */
+-#endif
+-#if __BYTE_ORDER == __BIG_ENDIAN 
+-	u_char	th_off:4,		/* data offset */
+-		th_x2:4;		/* (unused) */
+-#endif
+-	u_char	th_flags;
+-#define	TH_FIN	0x01
+-#define	TH_SYN	0x02
+-#define	TH_RST	0x04
+-#define	TH_PUSH	0x08
+-#define	TH_ACK	0x10
+-#define	TH_URG	0x20
+-	u_short	th_win;			/* window */
+-	u_short	th_sum;			/* checksum */
+-	u_short	th_urp;			/* urgent pointer */
+-};
+-
+-#define	TCPOPT_EOL	0
+-#define	TCPOPT_NOP	1
+-#define	TCPOPT_MAXSEG	2
+-
+-/*
+- * Default maximum segment size for TCP.
+- * With an IP MSS of 576, this is 536,
+- * but 512 is probably more convenient.
+- */
+-#ifdef	lint
+-#define	TCP_MSS	536
+-#else
+-#define	TCP_MSS	MIN(512, IP_MSS - sizeof (struct tcpiphdr))
+-#endif
+-
+-#endif /* _NETINET_TCP_H */
+diff --git a/include/netinet/ip_udp.h b/include/netinet/ip_udp.h
+deleted file mode 100644
+index 3f0d8ef..0000000
+--- a/include/netinet/ip_udp.h
++++ /dev/null
+@@ -1 +0,0 @@
+-#include <linux/udp.h>
+diff --git a/include/netinet/tcp.h b/include/netinet/tcp.h
+index 87099ec..06e8414 100644
+--- a/include/netinet/tcp.h
++++ b/include/netinet/tcp.h
+@@ -49,9 +49,12 @@
+ #define TCP_WINDOW_CLAMP 10	/* Bound advertised window */
+ #define TCP_INFO	 11	/* Information about this connection. */
+ #define	TCP_QUICKACK	 12	/* Bock/reenable quick ACKs.  */
++#define TCP_CONGESTION	 13	/* Congestion control algorithm.  */
++#define TCP_MD5SIG	 14	/* TCP MD5 Signature (RFC2385) */
+ 
+ #ifdef __USE_MISC
+ # include <sys/types.h>
++# include <sys/socket.h>
+ 
+ # ifdef __FAVOR_BSD
+ typedef	u_int32_t tcp_seq;
+@@ -218,6 +221,24 @@ struct tcp_info
+   u_int32_t	tcpi_snd_cwnd;
+   u_int32_t	tcpi_advmss;
+   u_int32_t	tcpi_reordering;
++
++  u_int32_t	tcpi_rcv_rtt;
++  u_int32_t	tcpi_rcv_space;
++
++  u_int32_t	tcpi_total_retrans;
++};
++
++
++/* For TCP_MD5SIG socket option.  */
++#define TCP_MD5SIG_MAXKEYLEN	80
++
++struct tcp_md5sig
++{
++  struct sockaddr_storage tcpm_addr;		/* Address associated.  */
++  u_int16_t	__tcpm_pad1;			/* Zero.  */
++  u_int16_t	tcpm_keylen;			/* Key length.  */
++  u_int32_t	__tcpm_pad2;			/* Zero.  */
++  u_int8_t	tcpm_key[TCP_MD5SIG_MAXKEYLEN];	/* Key (binary).  */
+ };
+ 
+ #endif /* Misc.  */
+diff --git a/include/netinet/udp.h b/include/netinet/udp.h
+index 5be4bbd..45b69f7 100644
+--- a/include/netinet/udp.h
++++ b/include/netinet/udp.h
+@@ -1,4 +1,4 @@
+-/* Copyright (C) 1991, 92, 93, 95, 96, 97 Free Software Foundation, Inc.
++/* Copyright (C) 1991, 92, 93, 95, 96, 97, 2004 Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+    The GNU C Library is free software; you can redistribute it and/or
+@@ -17,39 +17,63 @@
+    02111-1307 USA.  */
+ 
+ /*
+- * Copyright (c) 1982, 1986 Regents of the University of California.
+- * All rights reserved.  The Berkeley software License Agreement
+- * specifies the terms and conditions for redistribution.
++ * Copyright (C) 1982, 1986 Regents of the University of California.
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ * 4. Neither the name of the University nor the names of its contributors
++ *    may be used to endorse or promote products derived from this software
++ *    without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
+  */
+ 
+ #ifndef __NETINET_UDP_H
+ #define __NETINET_UDP_H    1
+ 
+-#include <sys/cdefs.h>
++#include <features.h>
+ #include <sys/types.h>
+ 
+-__BEGIN_DECLS
+ 
+ /* UDP header as specified by RFC 768, August 1980. */
+ #ifdef __FAVOR_BSD
+-struct udphdr {
+-         u_int16_t uh_sport;           /* source port */
+-         u_int16_t uh_dport;           /* destination port */
+-         u_int16_t uh_ulen;            /* udp length */
+-         u_int16_t uh_sum;             /* udp checksum */
++
++struct udphdr
++{
++  u_int16_t uh_sport;		/* source port */
++  u_int16_t uh_dport;		/* destination port */
++  u_int16_t uh_ulen;		/* udp length */
++  u_int16_t uh_sum;		/* udp checksum */
+ };
++
+ #else
+ 
+-struct udphdr {
+-  u_int16_t	source;
+-  u_int16_t	dest;
+-  u_int16_t	len;
+-  u_int16_t	check;
++struct udphdr
++{
++  u_int16_t source;
++  u_int16_t dest;
++  u_int16_t len;
++  u_int16_t check;
+ };
+ #endif
+ 
+ #define SOL_UDP            17      /* sockopt level for UDP */
+ 
+-__END_DECLS
+-
+ #endif /* netinet/udp.h */
+-- 
+1.6.4
+

@@ -15,12 +15,16 @@ fi
 rm -rf tmp
 rm -f uClibc-${uver}-*.tar.bz2
 
-mkdir -p tmp/patch/math
+mkdir -p tmp/patch
 cp -r ../README* ${uver}/*.patch tmp/patch/ || exit 1
-cp -r ${uver}/math/*.patch tmp/patch/math/ || exit 1
-if [[ -d ${uver}/math/libm ]] ; then
-	mkdir tmp/patch/math/libm
-	cp -r ${uver}/math/libm/*.c tmp/patch/math/libm/ || exit 1
+
+if [[ -d ${uver}/math ]] ; then
+	mkdir tmp/patch/math
+	cp -r ${uver}/math/*.patch tmp/patch/math/ || exit 1
+	if [[ -d ${uver}/math/libm ]] ; then
+		mkdir tmp/patch/math/libm
+		cp -r ${uver}/math/libm/*.c tmp/patch/math/libm/ || exit 1
+	fi
 fi
 
 #find tmp -type f -a ! -name 'README*' | xargs bzip2

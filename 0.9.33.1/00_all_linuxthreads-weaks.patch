@@ -1,0 +1,40 @@
+From 658929a7b35222455136f495dd4f26bb89b90a89 Mon Sep 17 00:00:00 2001
+From: Mike Frysinger <vapier@gentoo.org>
+Date: Sun, 22 Apr 2012 17:35:03 -0400
+Subject: [PATCH] linuxthreads.old: only declare __pthread_xxx funcs hidden
+ inside of libpthread
+
+These stubs get used in libc as forwarding funcs, so we don't want them
+labeled as hidden.  Otherwise, attempting to use them in other libraries
+(like libdl) will result in references to symbols that only libpthread
+provides.  Such as:
+	/usr/bin/python2.6: can't resolve symbol '__pthread_mutex_lock' in lib '/lib/libdl.so.0'.
+
+This also brings the old code in line with the newer linuxthreads.
+
+Signed-off-by: Mike Frysinger <vapier@gentoo.org>
+---
+ libpthread/linuxthreads.old/internals.h |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/libpthread/linuxthreads.old/internals.h b/libpthread/linuxthreads.old/internals.h
+index 110dd9d..cbd8a11 100644
+--- a/libpthread/linuxthreads.old/internals.h
++++ b/libpthread/linuxthreads.old/internals.h
+@@ -506,11 +506,13 @@ extern void __pthread_wait_for_restart_signal(pthread_descr self);
+ extern void (*__pthread_restart)(pthread_descr);
+ extern void (*__pthread_suspend)(pthread_descr);
+ 
++#if defined NOT_IN_libc && defined IS_IN_libpthread
+ extern __typeof(pthread_mutex_init) __pthread_mutex_init attribute_hidden;
+ extern __typeof(pthread_mutex_destroy) __pthread_mutex_destroy attribute_hidden;
+ extern __typeof(pthread_mutex_lock) __pthread_mutex_lock attribute_hidden;
+ extern __typeof(pthread_mutex_trylock) __pthread_mutex_trylock attribute_hidden;
+ extern __typeof(pthread_mutex_unlock) __pthread_mutex_attribute_hidden;
++#endif
+ 
+ /* Prototypes for some of the new semaphore functions.  */
+ extern int __new_sem_post (sem_t * sem);
+-- 
+1.7.8.5
+

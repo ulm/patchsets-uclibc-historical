@@ -1,0 +1,37 @@
+From 6f42e7e2cf9de444f2ef4c28f7754d84e8f966e3 Mon Sep 17 00:00:00 2001
+From: Mike Frysinger <vapier@gentoo.org>
+Date: Sun, 22 Apr 2012 23:34:31 -0400
+Subject: [PATCH] getconf: include a newline in error messages
+
+The normal error() func implicitly appends a newline, so make sure we do
+the same.  Otherwise getconf outputs an error message like so:
+prompt$ getconf -h
+Unrecognized variable `-h'prompt$
+
+Signed-off-by: Mike Frysinger <vapier@gentoo.org>
+---
+ utils/getconf.c |    8 +++-----
+ 1 files changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/utils/getconf.c b/utils/getconf.c
+index 5ff98e6..0b2a5aa 100644
+--- a/utils/getconf.c
++++ b/utils/getconf.c
+@@ -24,11 +24,9 @@
+ 
+ #define PACKAGE "getconf regression test"
+ #define VERSION ""
+-#ifndef _
+-# define _
+-#endif
+-#define error(status, errnum,...) \
+-	{fprintf(stderr, __VA_ARGS__); exit(status);}
++#define _(x) x
++#define error(status, errnum, fmt, ...) \
++	{fprintf(stderr, fmt "\n", ## __VA_ARGS__); exit(status);}
+ 
+ 
+ struct conf
+-- 
+1.7.8.5
+

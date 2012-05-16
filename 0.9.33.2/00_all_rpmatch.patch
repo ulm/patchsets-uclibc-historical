@@ -1,0 +1,41 @@
+From ecc6a1d1580086572c4c505330be52dbad205c27 Mon Sep 17 00:00:00 2001
+From: Mike Frysinger <vapier@gentoo.org>
+Date: Mon, 30 Apr 2012 00:40:49 -0400
+Subject: [PATCH] rpmatch: simple inline version
+
+Since rpmatch will match ^[Yy] and ^[Nn] regardless of locale, this
+lets us create a simple inline version.  Newer procps versions use
+this function.
+
+Signed-off-by: Mike Frysinger <vapier@gentoo.org>
+---
+ include/stdlib.h |    9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/include/stdlib.h b/include/stdlib.h
+index 352e58a..05a18eb 100644
+--- a/include/stdlib.h
++++ b/include/stdlib.h
+@@ -828,12 +828,17 @@ __END_NAMESPACE_STD
+ #endif /* __UCLIBC_HAS_WCHAR__ */
+ 
+ 
+-#if 0 /*def __USE_SVID*/
++#ifdef __USE_SVID
+ /* Determine whether the string value of RESPONSE matches the affirmation
+    or negative response expression as specified by the LC_MESSAGES category
+    in the program's current locale.  Returns 1 if affirmative, 0 if
+    negative, and -1 if not matching.  */
+-extern int rpmatch (__const char *__response) __THROW __nonnull ((1)) __wur;
++__nonnull ((1)) __wur
++static __always_inline int rpmatch (__const char *__response)
++{
++	return (__response[0] == 'y' || __response[0] == 'Y') ? 1 :
++		(__response[0] == 'n' || __response[0] == 'N') ? 0 : -1;
++}
+ #endif
+ 
+ 
+-- 
+1.7.9.7
+

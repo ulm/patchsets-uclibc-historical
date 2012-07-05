@@ -1,3 +1,11 @@
+merge these two patches:
+
+From: Bernhard Reutner-Fischer <rep.dot.nop@gmail.com>
+Date: Thu, 3 May 2012 13:04:14 +0200
+Subject: [PATCH] rpmatch: provide out-of-line implementation
+
+Signed-off-by: Bernhard Reutner-Fischer <rep.dot.nop@gmail.com>
+
 From ecc6a1d1580086572c4c505330be52dbad205c27 Mon Sep 17 00:00:00 2001
 From: Mike Frysinger <vapier@gentoo.org>
 Date: Mon, 30 Apr 2012 00:40:49 -0400
@@ -16,7 +24,7 @@ diff --git a/include/stdlib.h b/include/stdlib.h
 index 352e58a..05a18eb 100644
 --- a/include/stdlib.h
 +++ b/include/stdlib.h
-@@ -828,12 +828,17 @@ __END_NAMESPACE_STD
+@@ -828,7 +828,7 @@ __END_NAMESPACE_STD
  #endif /* __UCLIBC_HAS_WCHAR__ */
  
  
@@ -25,17 +33,50 @@ index 352e58a..05a18eb 100644
  /* Determine whether the string value of RESPONSE matches the affirmation
     or negative response expression as specified by the LC_MESSAGES category
     in the program's current locale.  Returns 1 if affirmative, 0 if
-    negative, and -1 if not matching.  */
--extern int rpmatch (__const char *__response) __THROW __nonnull ((1)) __wur;
-+__nonnull ((1)) __wur
-+static __always_inline int rpmatch (__const char *__response)
+diff --git a/libc/stdlib/Makefile.in b/libc/stdlib/Makefile.in
+index d927807..2983d47 100644
+--- a/libc/stdlib/Makefile.in
++++ b/libc/stdlib/Makefile.in
+@@ -33,7 +33,7 @@ endif
+ 
+ # multi source stdlib.c
+ CSRC-y += abs.c labs.c atoi.c atol.c strtol.c strtoul.c _stdlib_strto_l.c \
+-	qsort.c qsort_r.c bsearch.c \
++	qsort.c qsort_r.c bsearch.c rpmatch.c \
+ 	llabs.c atoll.c strtoll.c strtoull.c _stdlib_strto_ll.c
+ # (aliases) strtoq.o strtouq.o
+ CSRC-$(UCLIBC_HAS_FLOATS) += atof.c
+diff --git a/libc/stdlib/rpmatch.c b/libc/stdlib/rpmatch.c
+new file mode 100644
+index 0000000..dce06b6
+--- /dev/null
++++ b/libc/stdlib/rpmatch.c
+@@ -0,0 +1,7 @@
++/* Copyright (C) 2012 Bernhard Reutner-Fischer <uclibc@uclibc.org>
++ *
++ * Licensed under the LGPL v2.1+, see the file COPYING.LIB in this tarball.
++ */
++
++#define L_rpmatch
++#include "stdlib.c"
+diff --git a/libc/stdlib/stdlib.c b/libc/stdlib/stdlib.c
+index 9e8c347..de8f084 100644
+--- a/libc/stdlib/stdlib.c
++++ b/libc/stdlib/stdlib.c
+@@ -318,6 +318,14 @@ long long atoll(const char *nptr)
+ 
+ #endif
+ /**********************************************************************/
++#ifdef L_rpmatch
++int rpmatch (__const char *__response)
 +{
 +	return (__response[0] == 'y' || __response[0] == 'Y') ? 1 :
 +		(__response[0] == 'n' || __response[0] == 'N') ? 0 : -1;
 +}
- #endif
++#endif
++/**********************************************************************/
+ #if defined(L_strtol) || defined(L_strtol_l)
  
- 
+ libc_hidden_proto(__XL_NPP(strtol))
 -- 
 1.7.9.7
-
